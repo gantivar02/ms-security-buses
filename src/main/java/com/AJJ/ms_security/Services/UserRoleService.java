@@ -23,28 +23,33 @@ public class UserRoleService {
     @Autowired
     private UserRoleRepository theUserRoleRepository;
 
-    public boolean addUserRole(String userId, String roleId){
+    public String addUserRole(String userId, String roleId){
 
-        User user=this.theUserRepository.findById(userId).orElse(null);
-        Role role=this.theRoleRepository.findById(roleId).orElse(null);
+        User user = this.theUserRepository.findById(userId).orElse(null);
 
-        if(user!=null && role!=null){
-
-            UserRole existing =
-                    this.theUserRoleRepository.findByUser_IdAndRole_Id(userId,roleId);
-
-            if(existing!=null){
-                return false; // ya existe ese rol para ese usuario
-            }
-
-            UserRole theUserRole = new UserRole(user,role);
-            this.theUserRoleRepository.save(theUserRole);
-
-            return true;
+        if(user == null){
+            return "USER_NOT_FOUND";
         }
 
-        return false;
+        Role role = this.theRoleRepository.findById(roleId).orElse(null);
+
+        if(role == null){
+            return "ROLE_NOT_FOUND";
+        }
+
+        UserRole existing =
+                this.theUserRoleRepository.findByUser_IdAndRole_Id(userId, roleId);
+
+        if(existing != null){
+            return "ROLE_ALREADY_ASSIGNED";
+        }
+
+        UserRole theUserRole = new UserRole(user, role);
+        this.theUserRoleRepository.save(theUserRole);
+
+        return "SUCCESS";
     }
+
 
     public boolean removeUserRole(String userRoleId){
         UserRole userRole=this.theUserRoleRepository.findById(userRoleId).orElse(null);
@@ -58,27 +63,41 @@ public class UserRoleService {
     public List<UserRole> getRolesByUser(String userId){
         return this.theUserRoleRepository.getRolesByUser(userId);
     }
-    public boolean addMultipleRoles(String userId, List<String> roleIds){
+    public String addMultipleRoles(String userId, List<String> roleIds){
 
-        User user=this.theUserRepository.findById(userId).orElse(null);
+        User user = this.theUserRepository.findById(userId).orElse(null);
 
-        if(user==null){
-            return false;
+        if(user == null){
+            return "USER_NOT_FOUND";
         }
 
-        for(String roleId:roleIds){
+        boolean duplicateFound = false;
 
-            Role role=this.theRoleRepository.findById(roleId).orElse(null);
+        for(String roleId : roleIds){
 
-            if(role!=null){
-                UserRole userRole=new UserRole(user,role);
-                this.theUserRoleRepository.save(userRole);
+            Role role = this.theRoleRepository.findById(roleId).orElse(null);
+
+            if(role == null){
+                continue;
+            }
+
+            UserRole existing =
+                    this.theUserRoleRepository.findByUser_IdAndRole_Id(userId, roleId);
+
+            if(existing != null){
+                duplicateFound = true;
+            } else {
+                UserRole newUserRole = new UserRole(user, role);
+                this.theUserRoleRepository.save(newUserRole);
             }
         }
 
-        return true;
-    }
+        if(duplicateFound){
+            return "PARTIAL_SUCCESS";
+        }
 
+        return "SUCCESS";
+    }
 
 
 }
