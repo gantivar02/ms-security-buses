@@ -126,5 +126,7 @@ public class UserService {
             return false;
         }
     }
-
+    public User findByEmail(String email){
+        return this.theUserRepository.getUserByEmail(email);
+    }
 }
