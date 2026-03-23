@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+# Archivos sensibles
+src/main/resources/application.properties
+src/main/resources/application.yml
+
+# Variables de entorno opcionales
+.env
+#test
