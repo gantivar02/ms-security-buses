@@ -10,6 +10,9 @@ import com.AJJ.ms_security.Repositories.UserRoleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.*;
+
 import java.util.List;
 
 @Service
@@ -46,6 +49,8 @@ public class UserRoleService {
 
         UserRole theUserRole = new UserRole(user, role);
         this.theUserRoleRepository.save(theUserRole);
+        // 🔥 AQUÍ SE ENVÍA EL CORREO
+        sendEmail(user.getEmail(), role.getName());
 
         return "SUCCESS";
     }
@@ -97,6 +102,29 @@ public class UserRoleService {
         }
 
         return "SUCCESS";
+    }
+    private void sendEmail(String email, String roleName) {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+
+            String url = "http://localhost:5000/send-email";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            String body = "{"
+                    + "\"to\":\"" + email + "\","
+                    + "\"subject\":\"Cambio de roles\","
+                    + "\"message\":\"Se te asignó el rol: " + roleName + "\""
+                    + "}";
+
+            HttpEntity<String> request = new HttpEntity<>(body, headers);
+
+            restTemplate.postForObject(url, request, String.class);
+
+        } catch (Exception e) {
+            System.out.println("Error enviando correo: " + e.getMessage());
+        }
     }
 
 
