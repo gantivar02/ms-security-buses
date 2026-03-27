@@ -126,11 +126,11 @@ public class UserService {
             return false;
         }
     }
-<<<<<<< HEAD
+
     public User findByEmail(String email){
         return this.theUserRepository.getUserByEmail(email);
     }
-=======
+
 
     public List<User> searchUsers(String text){
 
@@ -146,5 +146,5 @@ public class UserService {
     }
 
 
->>>>>>> feature/HU-ENTR-1-002
+
 }
