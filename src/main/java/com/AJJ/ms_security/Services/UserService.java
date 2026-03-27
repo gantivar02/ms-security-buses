@@ -126,7 +126,25 @@ public class UserService {
             return false;
         }
     }
+<<<<<<< HEAD
     public User findByEmail(String email){
         return this.theUserRepository.getUserByEmail(email);
     }
+=======
+
+    public List<User> searchUsers(String text){
+
+        List<User> usersByName =
+                this.theUserRepository.findByNameContainingIgnoreCase(text);
+
+        List<User> usersByEmail =
+                this.theUserRepository.findByEmailContainingIgnoreCase(text);
+
+        usersByName.addAll(usersByEmail);
+
+        return usersByName;
+    }
+
+
+>>>>>>> feature/HU-ENTR-1-002
 }
