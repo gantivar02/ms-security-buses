@@ -8,4 +8,7 @@ import org.springframework.data.mongodb.repository.Query;
 public interface UserRepository extends MongoRepository<User, String> {
     @Query("{'email': ?0}")
     public User getUserByEmail(String email);
+
+    // Método más rápido para validaciones de correo
+    boolean existsByEmail(String email);
 }

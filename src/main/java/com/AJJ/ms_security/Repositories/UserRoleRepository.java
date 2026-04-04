@@ -9,4 +9,7 @@ import java.util.List;
 public interface UserRoleRepository  extends MongoRepository<UserRole,String> {
     @Query("{'user._id': ?0}")
     List<UserRole> getRolesByUser(String userId);
+
+    @Query("{'role.$id': ObjectId(?0)}")
+    List<UserRole> getUsersByRole(String roleId);
 }
