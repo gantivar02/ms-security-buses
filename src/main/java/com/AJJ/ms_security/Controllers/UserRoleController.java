@@ -10,7 +10,7 @@ import java.util.Map;
 
 @CrossOrigin
 @RestController
-@RequestMapping("/user-role")
+@RequestMapping("/api/user-role")
 public class UserRoleController {
     @Autowired
     private UserRoleService theUserRoleService;
