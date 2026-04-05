@@ -19,9 +19,11 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(securityInterceptor)
                 .addPathPatterns("/**")
                 .excludePathPatterns(
-                        "/security/login",
-                        "/security/forgot-password",   // HU-013: solicitud pública
-                        "/security/reset-password"     // HU-013: confirmación con token
+                        "/security/login",             // autenticación paso 1
+                        "/security/verify-2fa",        // HU-012: verificación código 2FA
+                        "/security/resend-2fa",        // HU-012: reenvío código 2FA
+                        "/security/forgot-password",   // HU-013: solicitud recuperación
+                        "/security/reset-password"     // HU-013: confirmación nueva contraseña
                 );
 
 
