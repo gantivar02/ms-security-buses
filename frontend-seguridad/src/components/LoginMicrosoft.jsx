@@ -1,50 +1,31 @@
-import { PublicClientApplication } from "@azure/msal-browser";
-import { msalConfig } from "../auth/msalConfig";
+export default function LoginMicrosoft({ onSuccess }) {
 
-const msalInstance = new PublicClientApplication(msalConfig);
-
-export default function LoginMicrosoft() {
-
-  const login = async () => {
+  const handleMicrosoftLogin = async () => {
     try {
-      // 🔥 INICIALIZAR MSAL (CLAVE)
-      await msalInstance.initialize();
-
       const response = await msalInstance.loginPopup({
-        scopes: ["openid", "profile", "email", "User.Read"]
+        scopes: ["user.read"],
       });
 
-      const idToken = response.idToken;
-
-      if (!idToken) {
-        console.error("No se recibió idToken");
-        return;
-      }
+      const token = response.idToken;
 
       const res = await fetch("http://localhost:8081/sessions/microsoft", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token: idToken })
+        body: JSON.stringify({ token }),
       });
 
       const data = await res.json();
 
-      console.log("Respuesta backend:", data);
-
       if (data.token) {
-        localStorage.setItem("token", data.token);
+        onSuccess(data.token); // 🔥 usar contexto
       }
 
     } catch (error) {
-      console.error("Error login Microsoft:", error);
+      console.error(error);
     }
   };
 
-  return (
-    <button onClick={login}>
-      🔷 Iniciar sesión con Microsoft
-    </button>
-  );
+  return <button onClick={handleMicrosoftLogin}>Login con Microsoft</button>;
 }

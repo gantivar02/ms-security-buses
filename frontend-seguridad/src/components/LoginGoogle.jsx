@@ -1,6 +1,6 @@
 import { GoogleLogin } from '@react-oauth/google';
 
-export default function LoginGoogle() {
+export default function LoginGoogle({ onSuccess }) {
 
   const handleSuccess = async (credentialResponse) => {
     const token = credentialResponse.credential;

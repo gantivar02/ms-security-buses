@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @CrossOrigin
@@ -45,5 +46,9 @@ public class RolePermissionController {
                     .status(HttpStatus.NOT_FOUND)
                     .body(Map.of("message", "Role or Permission not found"));
         }
+    }
+    @GetMapping("/role/{roleId}/permissions")
+    public ResponseEntity<List<?>> getPermissionsByRole(@PathVariable String roleId) {
+        return ResponseEntity.ok(this.theRolePermissionService.getPermissionsByRole(roleId));
     }
 }
