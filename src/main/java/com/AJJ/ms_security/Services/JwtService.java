@@ -13,32 +13,39 @@ import org.springframework.stereotype.Service;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
 @Service
 public class JwtService {
     @Value("${jwt.secret}")
-    private String secret; // Esta es la clave secreta que se utiliza para firmar el token. Debe mantenerse segura.
+    private String secret;
 
     @Value("${jwt.expiration}")
-    private Long expiration; // Tiempo de expiración del token en milisegundos.
+    private Long expiration;
+
     private Key secretKey = Keys.secretKeyFor(SignatureAlgorithm.HS512);
 
-    public String generateToken(User theUser) {
+    // HU-009: el token incluye ID usuario, roles, timestamp creación y expiración
+    public String generateToken(User theUser, List<String> roles) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
+
         Map<String, Object> claims = new HashMap<>();
         claims.put("_id", theUser.getId());
         claims.put("name", theUser.getName());
         claims.put("email", theUser.getEmail());
+        claims.put("roles", roles);
 
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(theUser.getName())
-                .setIssuedAt(now)
-                .setExpiration(expiryDate)
+                .setIssuedAt(now)         // timestamp de creación
+                .setExpiration(expiryDate) // timestamp de expiración
                 .signWith(secretKey)
                 .compact();
     }
+
     public boolean validateToken(String token) {
         try {
             Jws<Claims> claimsJws = Jwts.parserBuilder()
@@ -46,18 +53,14 @@ public class JwtService {
                     .build()
                     .parseClaimsJws(token);
 
-            // Verifica la expiración del token
             Date now = new Date();
             if (claimsJws.getBody().getExpiration().before(now)) {
                 return false;
             }
-
             return true;
         } catch (SignatureException ex) {
-            // La firma del token es inválida
             return false;
         } catch (Exception e) {
-            // Otra excepción
             return false;
         }
     }
@@ -71,16 +74,14 @@ public class JwtService {
 
             Claims claims = claimsJws.getBody();
 
-            User user = new User();
-            user.setId((String) claims.get("id"));
-            user.setName((String) claims.get("name"));
-            user.setEmail((String) claims.get("email"));
-            return user;
+            User theUser = new User();
+            // Fix: la clave guardada es "_id", no "id"
+            theUser.setId((String) claims.get("_id"));
+            theUser.setName((String) claims.get("name"));
+            theUser.setEmail((String) claims.get("email"));
+            return theUser;
         } catch (Exception e) {
-            // En caso de que el token sea inválido o haya expirado
             return null;
         }
     }
-
-
 }

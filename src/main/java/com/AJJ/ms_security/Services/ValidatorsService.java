@@ -28,36 +28,37 @@ public class ValidatorsService {
     private UserRoleRepository theUserRoleRepository;
 
     private static final String BEARER_PREFIX = "Bearer ";
-    public boolean  validationRolePermission(HttpServletRequest request,
-                                             String url,
-                                             String method){
-        boolean success=false;
-        User theUser=this.getUser(request);
-        if(theUser!=null){
-            System.out.println("Antes URL "+url+" metodo "+method);
-            url = url.replaceAll("[0-9a-fA-F]{24}|\\d+", "?");
-            System.out.println("URL "+url+" metodo "+method);
-            Permission thePermission=this.thePermissionRepository.getPermission(url,method);
 
-            List<UserRole> roles=this.theUserRoleRepository.getRolesByUser(theUser.getId());
-            int i=0;
-            while(i<roles.size() && success==false){
-                UserRole actual=roles.get(i);
-                Role theRole=actual.getRole();
-                if(theRole!=null && thePermission!=null){
-                    System.out.println("Rol "+theRole.getId()+ " Permission "+thePermission.getId());
-                    RolePermission theRolePermission=this.theRolePermissionRepository.getRolePermission(theRole.getId(),thePermission.getId());
-                    if (theRolePermission!=null){
-                        success=true;
-                    }
-                }else{
-                    success=false;
-                }
-                i+=1;
-            }
+    // HU-009: retorna código HTTP según el resultado de la validación
+    // 200 = OK, 401 = sin token o token inválido, 403 = token válido pero sin permiso
+    public int validationRolePermission(HttpServletRequest request,
+                                        String url,
+                                        String method) {
+        User theUser = this.getUser(request);
 
+        // Sin token o token inválido → 401 Sesión expirada o inválida
+        if (theUser == null) {
+            return 401;
         }
-        return success;
+
+        url = url.replaceAll("[0-9a-fA-F]{24}|\\d+", "?");
+        Permission thePermission = this.thePermissionRepository.getPermission(url, method);
+
+        List<UserRole> roles = this.theUserRoleRepository.getRolesByUser(theUser.getId());
+
+        for (UserRole actual : roles) {
+            Role theRole = actual.getRole();
+            if (theRole != null && thePermission != null) {
+                RolePermission theRolePermission = this.theRolePermissionRepository
+                        .getRolePermission(theRole.getId(), thePermission.getId());
+                if (theRolePermission != null) {
+                    return 200; // tiene permiso
+                }
+            }
+        }
+
+        // Token válido pero no tiene permiso para esta URL → 403 Acceso denegado
+        return 403;
     }
     /***
      * analiza el token y descifra los datos
