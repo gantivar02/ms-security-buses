@@ -11,7 +11,7 @@ import java.util.HashMap;
 
 @CrossOrigin
 @RestController
-@RequestMapping("/security")
+@RequestMapping("/api/public/security")
 public class SecurityController {
 
     @Autowired

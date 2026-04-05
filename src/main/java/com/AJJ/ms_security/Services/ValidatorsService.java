@@ -34,6 +34,9 @@ public class ValidatorsService {
         boolean success=false;
         User theUser=this.getUser(request);
         if(theUser!=null){
+
+
+            // buscar al permiso solicitado
             System.out.println("Antes URL "+url+" metodo "+method);
             url = url.replaceAll("[0-9a-fA-F]{24}|\\d+", "?");
             System.out.println("URL "+url+" metodo "+method);
@@ -62,7 +65,7 @@ public class ValidatorsService {
     /***
      * analiza el token y descifra los datos
      * */
-    public User getUser(final HttpServletRequest request) {
+    public User  getUser(final HttpServletRequest request) {
         User theUser=null;
         String authorizationHeader = request.getHeader("Authorization");
         System.out.println("Header "+authorizationHeader);
