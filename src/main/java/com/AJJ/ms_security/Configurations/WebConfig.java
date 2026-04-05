@@ -15,9 +15,10 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
 
 
+        // HU-009: proteger todas las rutas excepto el login (pública)
         registry.addInterceptor(securityInterceptor)
-                .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/public/**");
+                .addPathPatterns("/**")
+                .excludePathPatterns("/security/login");
 
 
     }

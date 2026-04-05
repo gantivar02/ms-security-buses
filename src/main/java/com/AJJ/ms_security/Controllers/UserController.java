@@ -23,6 +23,10 @@ public class UserController {
     public List<User> find() {
         return this.theUserService.find();
     }
+    @GetMapping("/search")
+    public List<User> searchUsers(@RequestParam String text){
+        return this.theUserService.searchUsers(text);
+    }
 
     @GetMapping("{id}")
     public User findById(@PathVariable String id) {

@@ -127,4 +127,18 @@ public class UserService {
         }
     }
 
+    public List<User> searchUsers(String text){
+
+        List<User> usersByName =
+                this.theUserRepository.findByNameContainingIgnoreCase(text);
+
+        List<User> usersByEmail =
+                this.theUserRepository.findByEmailContainingIgnoreCase(text);
+
+        usersByName.addAll(usersByEmail);
+
+        return usersByName;
+    }
+
+
 }
