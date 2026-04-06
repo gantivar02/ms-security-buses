@@ -11,5 +11,8 @@ public interface UserRoleRepository  extends MongoRepository<UserRole,String> {
     List<UserRole> getRolesByUser(String userId);
     UserRole findByUser_IdAndRole_Id(String userId, String roleId);
 
+
+    @Query("{'role.$id': ObjectId(?0)}")
+    List<UserRole> getUsersByRole(String roleId);
 }
 

@@ -94,6 +94,7 @@ public class UserRoleService {
             } else {
                 UserRole newUserRole = new UserRole(user, role);
                 this.theUserRoleRepository.save(newUserRole);
+                sendEmail(user.getEmail(), role.getName()); // ← línea agregada
             }
         }
 
