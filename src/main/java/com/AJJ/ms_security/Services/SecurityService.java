@@ -179,6 +179,48 @@ public class SecurityService {
         return success;
     }
     */
+    // HU-Google: login con token de Google
+    public Map<String, Object> loginGoogle(String googleToken) {
+        try {
+            // 1. Verificar el token con Google
+            RestTemplate restTemplate = new RestTemplate();
+            String googleUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + googleToken;
+            Map googleResponse = restTemplate.getForObject(googleUrl, Map.class);
+
+            if (googleResponse == null || googleResponse.get("email") == null) {
+                return Map.of("error", "TOKEN_INVALID");
+            }
+
+            String email = (String) googleResponse.get("email");
+            String name  = (String) googleResponse.get("name");
+
+            // 2. Buscar o crear el usuario en BD
+            User theUser = this.theUserRepository.getUserByEmail(email);
+
+            if (theUser == null) {
+                theUser = new User();
+                theUser.setEmail(email);
+                theUser.setName(name);
+                theUser.setPassword("GOOGLE_AUTH"); // sin contraseña local
+                this.theUserRepository.save(theUser);
+            }
+
+            // 3. Obtener roles y generar JWT
+            List<UserRole> userRoles = this.theUserRoleRepository.getRolesByUser(theUser.getId());
+            List<String> roleNames = userRoles.stream()
+                    .filter(ur -> ur.getRole() != null)
+                    .map(ur -> ur.getRole().getName())
+                    .collect(Collectors.toList());
+
+            String jwt = this.theJwtService.generateToken(theUser, roleNames);
+
+            return Map.of("token", jwt);
+
+        } catch (Exception e) {
+            System.out.println("Error en loginGoogle: " + e.getMessage());
+            return Map.of("error", "GOOGLE_AUTH_FAILED");
+        }
+    }
 
 }
 

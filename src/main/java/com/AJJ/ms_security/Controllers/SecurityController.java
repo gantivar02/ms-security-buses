@@ -19,7 +19,6 @@ public class SecurityController {
     @Autowired
     private SecurityService theSecurityService;
 
-    // HU-012: login ahora inicia el flujo 2FA, ya no retorna JWT directamente
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(
             @RequestBody User theNewUser,
@@ -36,7 +35,6 @@ public class SecurityController {
         return ResponseEntity.ok(theResponse);
     }
 
-    // HU-012: verifica el código de 6 dígitos y retorna el JWT si es correcto
     @PostMapping("/verify-2fa")
     public ResponseEntity<Map<String, Object>> verify2FA(@RequestBody Map<String, String> body) {
 
@@ -76,7 +74,6 @@ public class SecurityController {
         };
     }
 
-    // HU-012: reenvía un nuevo código 2FA al email del usuario
     @PostMapping("/resend-2fa")
     public ResponseEntity<Map<String, Object>> resend2FA(@RequestBody Map<String, String> body) {
 
@@ -98,7 +95,28 @@ public class SecurityController {
 
         return ResponseEntity.ok(theResponse);
     }
+
+    // ← NUEVO: login con Google
+    @PostMapping("/login-google")
+    public ResponseEntity<Map<String, Object>> loginGoogle(@RequestBody Map<String, String> body) {
+
+        String googleToken = body.get("token");
+
+        if (googleToken == null || googleToken.isBlank()) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Token de Google es requerido"));
+        }
+
+        Map<String, Object> theResponse = this.theSecurityService.loginGoogle(googleToken);
+
+        if (theResponse == null || theResponse.containsKey("error")) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Autenticación con Google fallida"));
+        }
+
+        return ResponseEntity.ok(theResponse);
+    }
+
 }
-
-
-
