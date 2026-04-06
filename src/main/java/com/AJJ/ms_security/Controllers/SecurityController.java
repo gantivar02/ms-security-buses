@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.util.Map;
 
-@CrossOrigin
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 @RequestMapping("/api/public/security")
 public class SecurityController {

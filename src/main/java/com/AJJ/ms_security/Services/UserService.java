@@ -37,10 +37,20 @@ public class UserService {
     }
 
     public User create(User newUser){
-        //Antes de crear un nuevo usuario validar que no esté duplicado.
+        //Antes de crear un nuevo usuario validar que no esté duplicado.=> lo podemos hacer con el email
+        // guardar en minuscula
+        String cleanEmail = newUser.getEmail().toLowerCase().trim();
+        newUser.setEmail(cleanEmail);
+        if (this.theUserRepository.getUserByEmail(newUser.getEmail()) != null ) {
+            // Lanzamos una excepción para que el Controller sepa que algo salió mal
+            throw new RuntimeException("El correo electrónico ya se encuentra registrado.");
+        }
         newUser.setPassword(theEncryptionService.convertSHA256(newUser.getPassword()));
         return this.theUserRepository.save(newUser);
     }
+
+
+
 
     public User update(String id, User newUser){
         User actualUser=this.theUserRepository.findById(id).orElse(null);
@@ -127,6 +137,11 @@ public class UserService {
         }
     }
 
+    public User findByEmail(String email){
+        return this.theUserRepository.getUserByEmail(email);
+    }
+
+
     public List<User> searchUsers(String text){
 
         List<User> usersByName =
@@ -139,6 +154,7 @@ public class UserService {
 
         return usersByName;
     }
+
 
 
 }

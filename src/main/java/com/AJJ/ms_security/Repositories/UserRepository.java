@@ -13,4 +13,7 @@ public interface UserRepository extends MongoRepository<User, String> {
     List<User> findByNameContainingIgnoreCase(String name);
 
     List<User> findByEmailContainingIgnoreCase(String email);
+
+    // Método más rápido para validaciones de correo
+    boolean existsByEmail(String email);
 }
