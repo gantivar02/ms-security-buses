@@ -10,7 +10,7 @@ import java.util.Map;
 
 @CrossOrigin
 @RestController
-@RequestMapping("/security")
+@RequestMapping("/api/public/security")
 public class PasswordResetController {
 
     @Autowired

@@ -12,7 +12,7 @@ import java.util.Map;
 
 @CrossOrigin
 @RestController
-@RequestMapping("/role-permission")
+@RequestMapping("/api/role-permission")
 public class RolePermissionController {
 
     @Autowired
