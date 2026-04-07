@@ -85,9 +85,13 @@ public class DataSeeder implements ApplicationRunner {
         permissions.add(buildPermission("sessions_delete", "sessions", "delete", "Permite eliminar sesiones", "/api/sessions/?", "DELETE"));
 
         // ROLE-PERMISSION
-        permissions.add(buildPermission("role_permission_read", "role_permission", "read", "Permite consultar permisos por rol", "/api/role-permission/?/permissions", "GET"));
+        permissions.add(buildPermission("role_permission_read", "role_permission", "read", "Permite consultar permisos por rol", "/api/role-permission/role/?", "GET"));
         permissions.add(buildPermission("role_permission_create", "role_permission", "create", "Permite asignar permisos a roles", "/api/role-permission/?/permission/?", "POST"));
         permissions.add(buildPermission("role_permission_delete", "role_permission", "delete", "Permite quitar permisos de roles", "/api/role-permission/?", "DELETE"));
+        //User-Role
+        permissions.add(buildPermission("user_role_read", "user_role", "read", "Permite consultar roles de usuario", "/api/user-role/user/?", "GET"));
+        permissions.add(buildPermission("user_role_create", "user_role", "create", "Permite asignar roles a usuarios", "/api/user-role/?/role/?", "POST"));
+        permissions.add(buildPermission("user_role_delete", "user_role", "delete", "Permite quitar roles de usuarios", "/api/user-role/?", "DELETE"));
 
         for (Permission permission : permissions) {
             if (this.thePermissionRepository.findByName(permission.getName()) == null) {
@@ -125,7 +129,12 @@ public class DataSeeder implements ApplicationRunner {
                     findPermission("profiles_update"),
                     findPermission("sessions_read"),
                     findPermission("role_permission_read"),
-                    findPermission("role_permission_create")
+                    findPermission("role_permission_create"),
+                    findPermission("role_permission_delete"),
+                    findPermission("user_role_read"),
+                    findPermission("user_role_create"),
+                    findPermission("user_role_delete")
+
             ));
         }
 
