@@ -31,6 +31,9 @@ public class User {
     )
     private String password;
 
+    // HU-006: username de GitHub, presente solo para usuarios autenticados con GitHub
+    private String githubUsername;
+
     public  User(){
     }
 
