@@ -119,4 +119,26 @@ public class SecurityController {
         return ResponseEntity.ok(theResponse);
     }
 
+    // login microsoft
+    @PostMapping("/login-microsoft")
+    public ResponseEntity<Map<String, Object>> loginMicrosoft(@RequestBody Map<String, String> body) {
+
+        String microsoftToken = body.get("token");
+
+        if (microsoftToken == null || microsoftToken.isBlank()) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Token de Microsoft es requerido"));
+        }
+
+        Map<String, Object> theResponse = this.theSecurityService.loginMicrosoft(microsoftToken);
+
+        if (theResponse == null || theResponse.containsKey("error")) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Autenticación con Microsoft fallida"));
+        }
+
+        return ResponseEntity.ok(theResponse);
+    }
 }

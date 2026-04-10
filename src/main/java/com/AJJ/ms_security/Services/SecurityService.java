@@ -222,5 +222,59 @@ public class SecurityService {
         }
     }
 
+    // HU-Microsoft: login con token de Microsoft
+    public Map<String, Object> loginMicrosoft(String microsoftToken) {
+        try {
+            // 1. Verificar el token con Microsoft
+            RestTemplate restTemplate = new RestTemplate();
+            String microsoftUrl = "https://graph.microsoft.com/v1.0/me";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + microsoftToken);
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            Map microsoftResponse = restTemplate.exchange(
+                    microsoftUrl,
+                    org.springframework.http.HttpMethod.GET,
+                    entity,
+                    Map.class
+            ).getBody();
+
+            if (microsoftResponse == null || microsoftResponse.get("userPrincipalName") == null) {
+                return Map.of("error", "TOKEN_INVALID");
+            }
+
+            String email = (String) microsoftResponse.get("userPrincipalName");
+            String name  = (String) microsoftResponse.get("displayName");
+
+            // 2. Buscar o crear usuario
+            User theUser = this.theUserRepository.getUserByEmail(email);
+
+            if (theUser == null) {
+                theUser = new User();
+                theUser.setEmail(email);
+                theUser.setName(name);
+                theUser.setPassword("MICROSOFT_AUTH");
+                this.theUserRepository.save(theUser);
+            }
+
+            // 3. Generar JWT
+            List<UserRole> userRoles = this.theUserRoleRepository.getRolesByUser(theUser.getId());
+            List<String> roleNames = userRoles.stream()
+                    .filter(ur -> ur.getRole() != null)
+                    .map(ur -> ur.getRole().getName())
+                    .collect(Collectors.toList());
+
+            String jwt = this.theJwtService.generateToken(theUser, roleNames);
+
+            return Map.of("token", jwt);
+
+        } catch (Exception e) {
+            System.out.println("Error en loginMicrosoft: " + e.getMessage());
+            return Map.of("error", "MICROSOFT_AUTH_FAILED");
+        }
+    }
+
 }
 
