@@ -30,13 +30,29 @@ public class RoleController {
     }
 
     @PostMapping
-    public Role create(@RequestBody Role newRole) {
-        return this.theRoleService.create(newRole);
+    public ResponseEntity<?> create(@RequestBody Role newRole) {
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(this.theRoleService.create(newRole));
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", ex.getMessage()));
+        }
     }
 
     @PutMapping("{id}")
-    public Role update(@PathVariable String id, @RequestBody Role newRole) {
-        return this.theRoleService.update(id, newRole);
+    public ResponseEntity<?> update(@PathVariable String id, @RequestBody Role newRole) {
+        try {
+            Role updated = this.theRoleService.update(id, newRole);
+            if (updated == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("message", "Role not found"));
+            }
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", ex.getMessage()));
+        }
     }
 
     @DeleteMapping("{id}")

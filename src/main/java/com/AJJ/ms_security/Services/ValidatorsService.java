@@ -9,7 +9,9 @@ import com.AJJ.ms_security.Services.JwtService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.AntPathMatcher;
 
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -28,6 +30,7 @@ public class ValidatorsService {
     private UserRoleRepository theUserRoleRepository;
 
     private static final String BEARER_PREFIX = "Bearer ";
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     // HU-009: retorna código HTTP según el resultado de la validación
     // 200 = OK, 401 = sin token o token inválido, 403 = token válido pero sin permiso
@@ -41,8 +44,8 @@ public class ValidatorsService {
             return 401;
         }
 
-        url = url.replaceAll("[0-9a-fA-F]{24}|\\d+", "?");
-        Permission thePermission = this.thePermissionRepository.getPermission(url, method);
+        String normalizedUrl = normalizeUrl(url);
+        Permission thePermission = this.resolvePermission(url, normalizedUrl, method);
 
         List<UserRole> roles = this.theUserRoleRepository.getRolesByUser(theUser.getId());
 
@@ -78,5 +81,64 @@ public class ValidatorsService {
             }
         }
         return theUser;
+    }
+
+    private Permission resolvePermission(String requestUrl, String normalizedUrl, String method) {
+        return this.thePermissionRepository.findByMethod(method).stream()
+                .filter(permission -> matchesPermissionUrl(permission.getUrl(), requestUrl, normalizedUrl))
+                .max(Comparator.comparingInt(permission -> permissionSpecificity(permission.getUrl())))
+                .orElse(null);
+    }
+
+    private boolean matchesPermissionUrl(String permissionUrl, String requestUrl, String normalizedUrl) {
+        if (permissionUrl == null || permissionUrl.isBlank()) {
+            return false;
+        }
+
+        if (permissionUrl.equals(requestUrl) || permissionUrl.equals(normalizedUrl)) {
+            return true;
+        }
+
+        if (permissionUrl.endsWith("/**")) {
+            String basePath = permissionUrl.substring(0, permissionUrl.length() - 3);
+            if (requestUrl.equals(basePath) || normalizedUrl.equals(basePath)) {
+                return true;
+            }
+        }
+
+        if (permissionUrl.contains("*") && pathMatcher.match(permissionUrl, requestUrl)) {
+            return true;
+        }
+
+        if (permissionUrl.contains("?")) {
+            String regex = toSegmentRegex(permissionUrl);
+            return requestUrl.matches(regex) || normalizedUrl.matches(regex);
+        }
+
+        return false;
+    }
+
+    private String normalizeUrl(String url) {
+        return url.replaceAll("[0-9a-fA-F]{24}|\\d+", "?");
+    }
+
+    private String toSegmentRegex(String permissionUrl) {
+        StringBuilder regex = new StringBuilder("^");
+        for (char current : permissionUrl.toCharArray()) {
+            if (current == '?') {
+                regex.append("[^/]+");
+            } else {
+                if ("\\.[]{}()+-^$|".indexOf(current) >= 0) {
+                    regex.append("\\");
+                }
+                regex.append(current);
+            }
+        }
+        regex.append("$");
+        return regex.toString();
+    }
+
+    private int permissionSpecificity(String permissionUrl) {
+        return permissionUrl.replace("*", "").replace("?", "").length();
     }
 }
