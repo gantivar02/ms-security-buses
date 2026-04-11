@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
 
@@ -16,12 +17,12 @@ public class PasswordResetController {
     @Autowired
     private PasswordResetService thePasswordResetService;
 
-    // HU-013: endpoint público, solicita recuperación ingresando solo el email
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, String>> forgotPassword(
             @RequestBody Map<String, String> body) {
 
         String email = body.get("email");
+        String recaptchaToken = body.get("recaptchaToken");
 
         if (email == null || email.isBlank()) {
             return ResponseEntity
@@ -29,11 +30,17 @@ public class PasswordResetController {
                     .body(Map.of("message", "El email es requerido"));
         }
 
+        // Verificar reCAPTCHA
+        if (!verifyRecaptcha(recaptchaToken)) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Verificación reCAPTCHA fallida"));
+        }
+
         String message = this.thePasswordResetService.requestPasswordReset(email);
         return ResponseEntity.ok(Map.of("message", message));
     }
 
-    // HU-013: endpoint para confirmar el nuevo password con el token recibido por email
     @PostMapping("/reset-password")
     public ResponseEntity<Map<String, String>> resetPassword(
             @RequestBody Map<String, String> body) {
@@ -62,5 +69,17 @@ public class PasswordResetController {
                     .status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Token inválido"));
         };
+    }
+
+    private boolean verifyRecaptcha(String token) {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String url = "https://www.google.com/recaptcha/api/siteverify?secret=6LeHpbEsAAAAAJoZs3uyZGVLnSK5V8TTXBJomalS&response=" + token;
+            Map response = restTemplate.postForObject(url, null, Map.class);
+            return response != null && Boolean.TRUE.equals(response.get("success"));
+        } catch (Exception e) {
+            System.out.println("Error verificando reCAPTCHA: " + e.getMessage());
+            return false;
+        }
     }
 }
