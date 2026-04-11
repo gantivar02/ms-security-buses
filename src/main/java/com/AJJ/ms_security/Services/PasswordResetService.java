@@ -5,6 +5,7 @@ import com.AJJ.ms_security.Models.User;
 import com.AJJ.ms_security.Repositories.PasswordResetTokenRepository;
 import com.AJJ.ms_security.Repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -26,12 +27,16 @@ public class PasswordResetService {
     @Autowired
     private EncryptionService theEncryptionService;
 
+    // HU-013: URL del frontend inyectada desde application.properties
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
+
     // HU-013: mensaje genérico siempre, no revela si el email existe o no
     private static final String GENERIC_MESSAGE =
             "Si el email existe, recibirá instrucciones de recuperación";
 
-    // 10 minutos en milisegundos
-    private static final long EXPIRATION_MS = 10 * 60 * 1000;
+    // HU-013: 30 minutos en milisegundos (criterio de aceptación)
+    private static final long EXPIRATION_MS = 30 * 60 * 1000;
 
     public String requestPasswordReset(String email) {
 
@@ -47,7 +52,7 @@ public class PasswordResetService {
                 this.thePasswordResetTokenRepository.save(existing);
             }
 
-            // Genera token único y fecha de expiración (30 minutos)
+            // Genera token único con expiración de 30 minutos
             String token = UUID.randomUUID().toString();
             Date expiration = new Date(System.currentTimeMillis() + EXPIRATION_MS);
 
@@ -102,7 +107,7 @@ public class PasswordResetService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            String resetLink = "https://sistema.com/reset-password?token=" + token;
+            String resetLink = frontendUrl + "/reset-password?token=" + token;
 
             String body = "{"
                     + "\"to\":\"" + email + "\","

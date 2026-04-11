@@ -7,9 +7,12 @@ import com.AJJ.ms_security.Repositories.SessionRepository;
 import com.AJJ.ms_security.Repositories.UserRepository;
 import com.AJJ.ms_security.Repositories.UserRoleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -33,6 +36,13 @@ public class SecurityService {
     private UserRoleRepository theUserRoleRepository;
     @Autowired
     private SessionRepository theSessionRepository;
+
+    // HU-006: credenciales de la GitHub OAuth App
+    @Value("${github.client-id}")
+    private String githubClientId;
+
+    @Value("${github.client-secret}")
+    private String githubClientSecret;
 
     private static final int MAX_ATTEMPTS = 3;
     private static final long CODE_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutos
@@ -172,6 +182,137 @@ public class SecurityService {
             System.out.println("Error enviando código 2FA: " + e.getMessage());
         }
     }
+    // HU-006: login con GitHub — recibe el authorization code del frontend
+    public Map<String, Object> loginGithub(String code) {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+
+            // 1. Intercambiar el code por un access_token
+            HttpHeaders tokenHeaders = new HttpHeaders();
+            tokenHeaders.setContentType(MediaType.APPLICATION_JSON);
+            tokenHeaders.set("Accept", "application/json");
+
+            Map<String, String> tokenBody = new HashMap<>();
+            tokenBody.put("client_id", githubClientId);
+            tokenBody.put("client_secret", githubClientSecret);
+            tokenBody.put("code", code);
+
+            HttpEntity<Map<String, String>> tokenRequest = new HttpEntity<>(tokenBody, tokenHeaders);
+            Map tokenResponse = restTemplate.postForObject(
+                    "https://github.com/login/oauth/access_token",
+                    tokenRequest,
+                    Map.class
+            );
+
+            if (tokenResponse == null || tokenResponse.get("access_token") == null) {
+                return Map.of("error", "GITHUB_AUTH_FAILED");
+            }
+
+            String accessToken = (String) tokenResponse.get("access_token");
+
+            // 2. Obtener datos del usuario desde la API de GitHub
+            HttpHeaders userHeaders = new HttpHeaders();
+            userHeaders.set("Authorization", "Bearer " + accessToken);
+            userHeaders.set("Accept", "application/vnd.github+json");
+            HttpEntity<?> userEntity = new HttpEntity<>(userHeaders);
+
+            ResponseEntity<Map> userResponse = restTemplate.exchange(
+                    "https://api.github.com/user",
+                    HttpMethod.GET,
+                    userEntity,
+                    Map.class
+            );
+
+            Map userData = userResponse.getBody();
+            if (userData == null) {
+                return Map.of("error", "GITHUB_AUTH_FAILED");
+            }
+
+            String githubLogin = (String) userData.get("login");
+            String name        = (String) userData.get("name");
+            String email       = (String) userData.get("email");
+
+            // 3. Si el email es privado en GitHub, consultar el endpoint de emails
+            if (email == null || email.isBlank()) {
+                email = this.getPrimaryGithubEmail(restTemplate, accessToken);
+            }
+
+            // Si sigue sin email, el frontend debe solicitar uno alternativo
+            if (email == null || email.isBlank()) {
+                return Map.of("error", "GITHUB_EMAIL_REQUIRED");
+            }
+
+            // Si el nombre público de GitHub está vacío, usar el username
+            if (name == null || name.isBlank()) {
+                name = githubLogin;
+            }
+
+            String normalizedEmail = email.toLowerCase().trim();
+
+            // 4. Buscar usuario existente o crear uno nuevo
+            User theUser = this.theUserRepository.getUserByEmail(normalizedEmail);
+            if (theUser == null) {
+                // Primera vez: crear cuenta automáticamente
+                theUser = new User();
+                theUser.setEmail(normalizedEmail);
+                theUser.setName(name);
+                theUser.setPassword("GITHUB_AUTH");
+                theUser.setGithubUsername(githubLogin);
+                this.theUserRepository.save(theUser);
+            } else {
+                // Cuenta existente: vincular GitHub si no estaba vinculado
+                if (theUser.getGithubUsername() == null) {
+                    theUser.setGithubUsername(githubLogin);
+                    this.theUserRepository.save(theUser);
+                }
+            }
+
+            // 5. Obtener roles y generar JWT
+            List<UserRole> userRoles = this.theUserRoleRepository.getRolesByUser(theUser.getId());
+            List<String> roleNames = userRoles.stream()
+                    .filter(ur -> ur.getRole() != null)
+                    .map(ur -> ur.getRole().getName())
+                    .collect(Collectors.toList());
+
+            String jwt = this.theJwtService.generateToken(theUser, roleNames);
+            return Map.of("token", jwt);
+
+        } catch (Exception e) {
+            System.out.println("Error en loginGithub: " + e.getMessage());
+            return Map.of("error", "GITHUB_AUTH_FAILED");
+        }
+    }
+
+    // HU-006: obtiene el email primario verificado cuando el usuario tiene email privado en GitHub
+    private String getPrimaryGithubEmail(RestTemplate restTemplate, String accessToken) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + accessToken);
+            headers.set("Accept", "application/vnd.github+json");
+            HttpEntity<?> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<List> response = restTemplate.exchange(
+                    "https://api.github.com/user/emails",
+                    HttpMethod.GET,
+                    entity,
+                    List.class
+            );
+
+            List<Map> emails = response.getBody();
+            if (emails != null) {
+                return emails.stream()
+                        .filter(e -> Boolean.TRUE.equals(e.get("primary"))
+                                  && Boolean.TRUE.equals(e.get("verified")))
+                        .map(e -> (String) e.get("email"))
+                        .findFirst()
+                        .orElse(null);
+            }
+        } catch (Exception e) {
+            System.out.println("Error obteniendo emails de GitHub: " + e.getMessage());
+        }
+        return null;
+    }
+
     /*
     public boolean permissionsValidation(final HttpServletRequest request,
                                          @RequestBody Permission thePermission) {

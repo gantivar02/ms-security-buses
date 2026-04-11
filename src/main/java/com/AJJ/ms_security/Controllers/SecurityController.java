@@ -96,7 +96,7 @@ public class SecurityController {
         return ResponseEntity.ok(theResponse);
     }
 
-    // ← NUEVO: login con Google
+    // login con Google
     @PostMapping("/login-google")
     public ResponseEntity<Map<String, Object>> loginGoogle(@RequestBody Map<String, String> body) {
 
@@ -114,6 +114,41 @@ public class SecurityController {
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("message", "Autenticación con Google fallida"));
+        }
+
+        return ResponseEntity.ok(theResponse);
+    }
+
+    // HU-006: login con GitHub — el frontend envía el authorization code de GitHub
+    @PostMapping("/login-github")
+    public ResponseEntity<Map<String, Object>> loginGithub(@RequestBody Map<String, String> body) {
+
+        String code = body.get("code");
+
+        if (code == null || code.isBlank()) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Código de autorización de GitHub es requerido"));
+        }
+
+        Map<String, Object> theResponse = this.theSecurityService.loginGithub(code);
+
+        if (theResponse.containsKey("error")) {
+            String error = (String) theResponse.get("error");
+
+            if ("GITHUB_EMAIL_REQUIRED".equals(error)) {
+                // El usuario tiene email privado en GitHub — el frontend debe pedirlo
+                return ResponseEntity
+                        .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                        .body(Map.of(
+                                "message", "Su cuenta de GitHub tiene el email privado. Por favor proporcione un email alternativo",
+                                "error", error
+                        ));
+            }
+
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Autenticación con GitHub fallida"));
         }
 
         return ResponseEntity.ok(theResponse);
