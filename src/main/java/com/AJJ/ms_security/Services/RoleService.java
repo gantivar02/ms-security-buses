@@ -26,6 +26,7 @@ public class RoleService {
     }
 
     public Role create(Role newRole){
+        validateRole(newRole, null);
         return this.theRoleRepository.save(newRole);
     }
 
@@ -33,6 +34,7 @@ public class RoleService {
         Role actualRole = this.theRoleRepository.findById(id).orElse(null);
 
         if(actualRole != null){
+            validateRole(newRole, id);
             actualRole.setName(newRole.getName());
             actualRole.setDescription(newRole.getDescription());
             this.theRoleRepository.save(actualRole);
@@ -52,6 +54,28 @@ public class RoleService {
 
         this.theRoleRepository.delete(theRole);
         return true;
+    }
+
+    private void validateRole(Role role, String currentId) {
+        if (role == null) {
+            throw new RuntimeException("Role payload is required");
+        }
+
+        if (role.getName() == null || role.getName().trim().isEmpty()) {
+            throw new RuntimeException("Role name is required");
+        }
+
+        if (role.getDescription() == null || role.getDescription().trim().isEmpty()) {
+            throw new RuntimeException("Role description is required");
+        }
+
+        role.setName(role.getName().trim());
+        role.setDescription(role.getDescription().trim());
+
+        Role byName = this.theRoleRepository.findByNameIgnoreCase(role.getName());
+        if (byName != null && !byName.getId().equals(currentId)) {
+            throw new RuntimeException("A role with that name already exists");
+        }
     }
 
 }

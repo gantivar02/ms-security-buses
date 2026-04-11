@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Component
 public class DataSeeder implements ApplicationRunner {
@@ -43,61 +44,31 @@ public class DataSeeder implements ApplicationRunner {
 
     private void seedRoles() {
         DEFAULT_ROLES.forEach(data -> {
-            String name = data[0];
-            if (this.theRoleRepository.findByName(name) == null) {
-                this.theRoleRepository.save(new Role(name, data[1]));
-                System.out.println("[DataSeeder] Rol creado: " + name);
-            }
+            upsertRole(data[0], data[1]);
         });
     }
 
     private void seedPermissions() {
         List<Permission> permissions = new ArrayList<>();
 
-        // USERS
-        permissions.add(buildPermission("users_read", "users", "read", "Permite consultar usuarios", "/api/users", "GET"));
-        permissions.add(buildPermission("users_create", "users", "create", "Permite crear usuarios", "/api/users", "POST"));
-        permissions.add(buildPermission("users_update", "users", "update", "Permite actualizar usuarios", "/api/users/?", "PUT"));
-        permissions.add(buildPermission("users_delete", "users", "delete", "Permite eliminar usuarios", "/api/users/?", "DELETE"));
+        addCrudPermissions(permissions, "users", "usuarios", "/api/users/**");
+        addCrudPermissions(permissions, "roles", "roles", "/api/roles/**");
+        addCrudPermissions(permissions, "permissions", "permisos", "/api/permissions/**");
+        addCrudPermissions(permissions, "profiles", "perfiles", "/api/profiles/**");
+        addCrudPermissions(permissions, "sessions", "sesiones", "/api/sessions/**");
+        addCrudPermissions(permissions, "role_permission", "permisos por rol", "/api/role-permission/**");
+        addCrudPermissions(permissions, "user_role", "roles de usuario", "/api/user-role/**");
 
-        // ROLES
-        permissions.add(buildPermission("roles_read", "roles", "read", "Permite consultar roles", "/api/roles", "GET"));
-        permissions.add(buildPermission("roles_create", "roles", "create", "Permite crear roles", "/api/roles", "POST"));
-        permissions.add(buildPermission("roles_update", "roles", "update", "Permite actualizar roles", "/api/roles/?", "PUT"));
-        permissions.add(buildPermission("roles_delete", "roles", "delete", "Permite eliminar roles", "/api/roles/?", "DELETE"));
-
-        // PERMISSIONS
-        permissions.add(buildPermission("permissions_read", "permissions", "read", "Permite consultar permisos", "/api/permissions", "GET"));
-        permissions.add(buildPermission("permissions_create", "permissions", "create", "Permite crear permisos", "/api/permissions", "POST"));
-        permissions.add(buildPermission("permissions_update", "permissions", "update", "Permite actualizar permisos", "/api/permissions/?", "PUT"));
-        permissions.add(buildPermission("permissions_delete", "permissions", "delete", "Permite eliminar permisos", "/api/permissions/?", "DELETE"));
-
-        // PROFILES
-        permissions.add(buildPermission("profiles_read", "profiles", "read", "Permite consultar perfiles", "/api/profiles", "GET"));
-        permissions.add(buildPermission("profiles_create", "profiles", "create", "Permite crear perfiles", "/api/profiles", "POST"));
-        permissions.add(buildPermission("profiles_update", "profiles", "update", "Permite actualizar perfiles", "/api/profiles/?", "PUT"));
-        permissions.add(buildPermission("profiles_delete", "profiles", "delete", "Permite eliminar perfiles", "/api/profiles/?", "DELETE"));
-
-        // SESSIONS
-        permissions.add(buildPermission("sessions_read", "sessions", "read", "Permite consultar sesiones", "/api/sessions", "GET"));
-        permissions.add(buildPermission("sessions_create", "sessions", "create", "Permite crear sesiones", "/api/sessions", "POST"));
-        permissions.add(buildPermission("sessions_update", "sessions", "update", "Permite actualizar sesiones", "/api/sessions/?", "PUT"));
-        permissions.add(buildPermission("sessions_delete", "sessions", "delete", "Permite eliminar sesiones", "/api/sessions/?", "DELETE"));
-
-        // ROLE-PERMISSION
-        permissions.add(buildPermission("role_permission_read", "role_permission", "read", "Permite consultar permisos por rol", "/api/role-permission/role/?", "GET"));
-        permissions.add(buildPermission("role_permission_create", "role_permission", "create", "Permite asignar permisos a roles", "/api/role-permission/?/permission/?", "POST"));
-        permissions.add(buildPermission("role_permission_delete", "role_permission", "delete", "Permite quitar permisos de roles", "/api/role-permission/?", "DELETE"));
-        //User-Role
-        permissions.add(buildPermission("user_role_read", "user_role", "read", "Permite consultar roles de usuario", "/api/user-role/user/?", "GET"));
-        permissions.add(buildPermission("user_role_create", "user_role", "create", "Permite asignar roles a usuarios", "/api/user-role/?/role/?", "POST"));
-        permissions.add(buildPermission("user_role_delete", "user_role", "delete", "Permite quitar roles de usuarios", "/api/user-role/?", "DELETE"));
+        // Módulos de la HU HU-ENTR-1-001
+        addCrudPermissions(permissions, "buses", "buses", "/api/buses/**");
+        addCrudPermissions(permissions, "routes", "rutas", "/api/routes/**");
+        addCrudPermissions(permissions, "schedules", "programaciones", "/api/schedules/**");
+        addCrudPermissions(permissions, "reports", "reportes", "/api/reports/**");
+        addCrudPermissions(permissions, "incidents", "incidentes", "/api/incidents/**");
+        addCrudPermissions(permissions, "mass_messages", "mensajes masivos", "/api/mass-messages/**");
 
         for (Permission permission : permissions) {
-            if (this.thePermissionRepository.findByName(permission.getName()) == null) {
-                this.thePermissionRepository.save(permission);
-                System.out.println("[DataSeeder] Permiso creado: " + permission.getName());
-            }
+            upsertPermission(permission);
         }
     }
 
@@ -121,20 +92,46 @@ public class DataSeeder implements ApplicationRunner {
                     findPermission("users_read"),
                     findPermission("users_create"),
                     findPermission("users_update"),
+                    findPermission("users_delete"),
                     findPermission("roles_read"),
                     findPermission("roles_create"),
                     findPermission("roles_update"),
+                    findPermission("roles_delete"),
                     findPermission("permissions_read"),
                     findPermission("profiles_read"),
+                    findPermission("profiles_create"),
                     findPermission("profiles_update"),
                     findPermission("sessions_read"),
+                    findPermission("sessions_create"),
+                    findPermission("sessions_update"),
+                    findPermission("sessions_delete"),
                     findPermission("role_permission_read"),
                     findPermission("role_permission_create"),
                     findPermission("role_permission_delete"),
                     findPermission("user_role_read"),
                     findPermission("user_role_create"),
-                    findPermission("user_role_delete")
-
+                    findPermission("user_role_delete"),
+                    findPermission("buses_read"),
+                    findPermission("buses_create"),
+                    findPermission("buses_update"),
+                    findPermission("buses_delete"),
+                    findPermission("routes_read"),
+                    findPermission("routes_create"),
+                    findPermission("routes_update"),
+                    findPermission("routes_delete"),
+                    findPermission("schedules_read"),
+                    findPermission("schedules_create"),
+                    findPermission("schedules_update"),
+                    findPermission("schedules_delete"),
+                    findPermission("reports_read"),
+                    findPermission("incidents_read"),
+                    findPermission("incidents_create"),
+                    findPermission("incidents_update"),
+                    findPermission("incidents_delete"),
+                    findPermission("mass_messages_read"),
+                    findPermission("mass_messages_create"),
+                    findPermission("mass_messages_update"),
+                    findPermission("mass_messages_delete")
             ));
         }
 
@@ -147,7 +144,15 @@ public class DataSeeder implements ApplicationRunner {
                     findPermission("profiles_read"),
                     findPermission("profiles_update"),
                     findPermission("sessions_read"),
-                    findPermission("role_permission_read")
+                    findPermission("role_permission_read"),
+                    findPermission("buses_read"),
+                    findPermission("routes_read"),
+                    findPermission("schedules_read"),
+                    findPermission("reports_read"),
+                    findPermission("incidents_read"),
+                    findPermission("incidents_create"),
+                    findPermission("incidents_update"),
+                    findPermission("mass_messages_read")
             ));
         }
 
@@ -157,7 +162,12 @@ public class DataSeeder implements ApplicationRunner {
                     findPermission("profiles_read"),
                     findPermission("profiles_update"),
                     findPermission("sessions_create"),
-                    findPermission("sessions_read")
+                    findPermission("sessions_read"),
+                    findPermission("routes_read"),
+                    findPermission("schedules_read"),
+                    findPermission("incidents_read"),
+                    findPermission("incidents_create"),
+                    findPermission("incidents_update")
             ));
         }
 
@@ -166,9 +176,23 @@ public class DataSeeder implements ApplicationRunner {
             assignPermissions(ciudadano, List.of(
                     findPermission("profiles_read"),
                     findPermission("profiles_update"),
-                    findPermission("sessions_create")
+                    findPermission("sessions_create"),
+                    findPermission("routes_read"),
+                    findPermission("schedules_read"),
+                    findPermission("reports_read")
             ));
         }
+    }
+
+    private void addCrudPermissions(List<Permission> permissions, String module, String label, String urlPattern) {
+        permissions.add(buildPermission(module + "_read", module, "read",
+                "Permite consultar " + label, urlPattern, "GET"));
+        permissions.add(buildPermission(module + "_create", module, "create",
+                "Permite crear " + label, urlPattern, "POST"));
+        permissions.add(buildPermission(module + "_update", module, "update",
+                "Permite actualizar " + label, urlPattern, "PUT"));
+        permissions.add(buildPermission(module + "_delete", module, "delete",
+                "Permite eliminar " + label, urlPattern, "DELETE"));
     }
 
     private Permission buildPermission(String name, String module, String action, String description, String url, String method) {
@@ -190,6 +214,66 @@ public class DataSeeder implements ApplicationRunner {
                 this.theRolePermissionRepository.save(new RolePermission(permission, role));
                 System.out.println("[DataSeeder] Permiso " + permission.getName() + " asignado a rol " + role.getName());
             }
+        }
+    }
+
+    private void upsertRole(String name, String description) {
+        Role existing = this.theRoleRepository.findByNameIgnoreCase(name);
+        if (existing == null) {
+            this.theRoleRepository.save(new Role(name, description));
+            System.out.println("[DataSeeder] Rol creado: " + name);
+            return;
+        }
+
+        boolean changed = false;
+        if (!Objects.equals(existing.getName(), name)) {
+            existing.setName(name);
+            changed = true;
+        }
+        if (!Objects.equals(existing.getDescription(), description)) {
+            existing.setDescription(description);
+            changed = true;
+        }
+
+        if (changed) {
+            this.theRoleRepository.save(existing);
+            System.out.println("[DataSeeder] Rol actualizado: " + name);
+        }
+    }
+
+    private void upsertPermission(Permission expectedPermission) {
+        Permission existing = this.thePermissionRepository.findByName(expectedPermission.getName());
+        if (existing == null) {
+            this.thePermissionRepository.save(expectedPermission);
+            System.out.println("[DataSeeder] Permiso creado: " + expectedPermission.getName());
+            return;
+        }
+
+        boolean changed = false;
+        if (!Objects.equals(existing.getModule(), expectedPermission.getModule())) {
+            existing.setModule(expectedPermission.getModule());
+            changed = true;
+        }
+        if (!Objects.equals(existing.getAction(), expectedPermission.getAction())) {
+            existing.setAction(expectedPermission.getAction());
+            changed = true;
+        }
+        if (!Objects.equals(existing.getDescription(), expectedPermission.getDescription())) {
+            existing.setDescription(expectedPermission.getDescription());
+            changed = true;
+        }
+        if (!Objects.equals(existing.getUrl(), expectedPermission.getUrl())) {
+            existing.setUrl(expectedPermission.getUrl());
+            changed = true;
+        }
+        if (!Objects.equals(existing.getMethod(), expectedPermission.getMethod())) {
+            existing.setMethod(expectedPermission.getMethod());
+            changed = true;
+        }
+
+        if (changed) {
+            this.thePermissionRepository.save(existing);
+            System.out.println("[DataSeeder] Permiso actualizado: " + expectedPermission.getName());
         }
     }
 }
