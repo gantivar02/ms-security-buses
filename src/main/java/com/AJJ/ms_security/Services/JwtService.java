@@ -18,6 +18,10 @@ import java.util.Map;
 
 @Service
 public class JwtService {
+    private static final String ACCESS_TOKEN_TYPE = "ACCESS";
+    private static final String GOOGLE_ONBOARDING_TOKEN_TYPE = "GOOGLE_ONBOARDING";
+    private static final long GOOGLE_ONBOARDING_EXPIRATION_MS = 15 * 60 * 1000;
+
     @Value("${jwt.secret}")
     private String secret;
 
@@ -36,12 +40,32 @@ public class JwtService {
         claims.put("name", theUser.getName());
         claims.put("email", theUser.getEmail());
         claims.put("roles", roles);
+        claims.put("type", ACCESS_TOKEN_TYPE);
 
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(theUser.getName())
                 .setIssuedAt(now)         // timestamp de creación
                 .setExpiration(expiryDate) // timestamp de expiración
+                .signWith(secretKey)
+                .compact();
+    }
+
+    public String generateGoogleOnboardingToken(User theUser) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + GOOGLE_ONBOARDING_EXPIRATION_MS);
+
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("_id", theUser.getId());
+        claims.put("name", theUser.getName());
+        claims.put("email", theUser.getEmail());
+        claims.put("type", GOOGLE_ONBOARDING_TOKEN_TYPE);
+
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(theUser.getName())
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
                 .signWith(secretKey)
                 .compact();
     }
@@ -66,6 +90,14 @@ public class JwtService {
     }
 
     public User getUserFromToken(String token) {
+        return this.getUserFromToken(token, ACCESS_TOKEN_TYPE);
+    }
+
+    public User getUserFromGoogleOnboardingToken(String token) {
+        return this.getUserFromToken(token, GOOGLE_ONBOARDING_TOKEN_TYPE);
+    }
+
+    private User getUserFromToken(String token, String expectedType) {
         try {
             Jws<Claims> claimsJws = Jwts.parserBuilder()
                     .setSigningKey(secretKey)
@@ -73,9 +105,11 @@ public class JwtService {
                     .parseClaimsJws(token);
 
             Claims claims = claimsJws.getBody();
+            if (!expectedType.equals(claims.get("type"))) {
+                return null;
+            }
 
             User theUser = new User();
-            // Fix: la clave guardada es "_id", no "id"
             theUser.setId((String) claims.get("_id"));
             theUser.setName((String) claims.get("name"));
             theUser.setEmail((String) claims.get("email"));

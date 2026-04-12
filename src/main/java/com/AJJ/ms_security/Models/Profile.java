@@ -13,9 +13,13 @@ public class Profile {
     private String id;
     private String phone;
     private String photo;
+    private String address;
 
     @DBRef
     private User user;
+
+    public Profile() {
+    }
 
     public Profile(String photo, String phone) {
         this.photo = photo;

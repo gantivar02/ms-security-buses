@@ -1,8 +1,12 @@
 package com.AJJ.ms_security.Services;
 
 import com.AJJ.ms_security.Models.Session;
+import com.AJJ.ms_security.Models.Profile;
+import com.AJJ.ms_security.Models.Role;
 import com.AJJ.ms_security.Models.User;
 import com.AJJ.ms_security.Models.UserRole;
+import com.AJJ.ms_security.Repositories.ProfileRepository;
+import com.AJJ.ms_security.Repositories.RoleRepository;
 import com.AJJ.ms_security.Repositories.SessionRepository;
 import com.AJJ.ms_security.Repositories.UserRepository;
 import com.AJJ.ms_security.Repositories.UserRoleRepository;
@@ -36,6 +40,10 @@ public class SecurityService {
     private UserRoleRepository theUserRoleRepository;
     @Autowired
     private SessionRepository theSessionRepository;
+    @Autowired
+    private ProfileRepository theProfileRepository;
+    @Autowired
+    private RoleRepository theRoleRepository;
 
     // HU-006: credenciales de la GitHub OAuth App
     @Value("${github.client-id}")
@@ -43,6 +51,9 @@ public class SecurityService {
 
     @Value("${github.client-secret}")
     private String githubClientSecret;
+
+    @Value("${google.client-id:}")
+    private String googleClientId;
 
     private static final int MAX_ATTEMPTS = 3;
     private static final long CODE_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutos
@@ -323,44 +334,189 @@ public class SecurityService {
     // HU-Google: login con token de Google
     public Map<String, Object> loginGoogle(String googleToken) {
         try {
-            // 1. Verificar el token con Google
             RestTemplate restTemplate = new RestTemplate();
             String googleUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + googleToken;
             Map googleResponse = restTemplate.getForObject(googleUrl, Map.class);
 
-            if (googleResponse == null || googleResponse.get("email") == null) {
+            if (googleResponse == null || googleResponse.get("email") == null || googleResponse.get("sub") == null) {
                 return Map.of("error", "TOKEN_INVALID");
             }
 
-            String email = (String) googleResponse.get("email");
-            String name  = (String) googleResponse.get("name");
+            String email = ((String) googleResponse.get("email")).toLowerCase().trim();
+            String name = (String) googleResponse.get("name");
+            String googleId = (String) googleResponse.get("sub");
+            String audience = (String) googleResponse.get("aud");
+            String issuer = (String) googleResponse.get("iss");
+            String picture = (String) googleResponse.get("picture");
+            boolean emailVerified = Boolean.parseBoolean(String.valueOf(googleResponse.get("email_verified")));
 
-            // 2. Buscar o crear el usuario en BD
+            if (!emailVerified || !this.isValidGoogleIssuer(issuer) || !this.matchesGoogleAudience(audience)) {
+                return Map.of("error", "TOKEN_INVALID");
+            }
+
             User theUser = this.theUserRepository.getUserByEmail(email);
+            boolean createdWithGoogle = false;
 
             if (theUser == null) {
                 theUser = new User();
                 theUser.setEmail(email);
-                theUser.setName(name);
-                theUser.setPassword("GOOGLE_AUTH"); // sin contraseña local
+                theUser.setName((name == null || name.isBlank()) ? email : name);
+                theUser.setPassword("GOOGLE_AUTH");
+                theUser.setGoogleId(googleId);
                 this.theUserRepository.save(theUser);
+                this.assignCitizenRole(theUser);
+                createdWithGoogle = true;
+            } else {
+                if (theUser.getGoogleId() != null && !theUser.getGoogleId().equals(googleId)) {
+                    return Map.of("error", "GOOGLE_ACCOUNT_MISMATCH");
+                }
+
+                boolean shouldSaveUser = false;
+                if (theUser.getGoogleId() == null) {
+                    theUser.setGoogleId(googleId);
+                    shouldSaveUser = true;
+                }
+                if ((theUser.getName() == null || theUser.getName().isBlank()) && name != null && !name.isBlank()) {
+                    theUser.setName(name);
+                    shouldSaveUser = true;
+                }
+
+                if (shouldSaveUser) {
+                    this.theUserRepository.save(theUser);
+                }
             }
 
-            // 3. Obtener roles y generar JWT
-            List<UserRole> userRoles = this.theUserRoleRepository.getRolesByUser(theUser.getId());
-            List<String> roleNames = userRoles.stream()
-                    .filter(ur -> ur.getRole() != null)
-                    .map(ur -> ur.getRole().getName())
-                    .collect(Collectors.toList());
+            this.upsertGoogleProfile(theUser, picture);
 
-            String jwt = this.theJwtService.generateToken(theUser, roleNames);
+            if (createdWithGoogle || this.requiresCitizenAddress(theUser)) {
+                String onboardingToken = this.theJwtService.generateGoogleOnboardingToken(theUser);
+                Map<String, Object> response = new HashMap<>();
+                response.put("requiresProfileCompletion", true);
+                response.put("provider", "google");
+                response.put("onboardingToken", onboardingToken);
+                response.put("userId", theUser.getId());
+                response.put("email", theUser.getEmail());
+                response.put("name", theUser.getName());
+                response.put("message", "Debe completar su dirección para finalizar el registro como ciudadano");
+                return response;
+            }
 
-            return Map.of("token", jwt);
+            return Map.of("token", this.generateAccessToken(theUser));
 
         } catch (Exception e) {
             System.out.println("Error en loginGoogle: " + e.getMessage());
             return Map.of("error", "GOOGLE_AUTH_FAILED");
         }
+    }
+
+    public Map<String, Object> completeGoogleProfile(String onboardingToken, String address, String phone) {
+        if (address == null || address.isBlank()) {
+            return Map.of("error", "ADDRESS_REQUIRED");
+        }
+
+        User tokenUser = this.theJwtService.getUserFromGoogleOnboardingToken(onboardingToken);
+        if (tokenUser == null) {
+            return Map.of("error", "ONBOARDING_TOKEN_INVALID");
+        }
+
+        User theUser = this.theUserRepository.findById(tokenUser.getId()).orElse(null);
+        if (theUser == null) {
+            return Map.of("error", "USER_NOT_FOUND");
+        }
+
+        this.assignCitizenRole(theUser);
+
+        Profile profile = this.theProfileRepository.findByUserId(theUser.getId());
+        if (profile == null) {
+            profile = new Profile();
+            profile.setUser(theUser);
+        }
+
+        profile.setAddress(address.trim());
+        if (phone != null && !phone.isBlank()) {
+            profile.setPhone(phone.trim());
+        }
+        this.theProfileRepository.save(profile);
+
+        return Map.of("token", this.generateAccessToken(theUser));
+    }
+
+    public Map<String, Object> unlinkGoogleAccount(String userId) {
+        User theUser = this.theUserRepository.findById(userId).orElse(null);
+        if (theUser == null) {
+            return Map.of("error", "USER_NOT_FOUND");
+        }
+
+        if (theUser.getGoogleId() == null || theUser.getGoogleId().isBlank()) {
+            return Map.of("error", "GOOGLE_NOT_LINKED");
+        }
+
+        theUser.setGoogleId(null);
+        this.theUserRepository.save(theUser);
+
+        return Map.of(
+                "message", "Cuenta de Google desvinculada correctamente. Si desea iniciar sesión sin Google, utilice recuperación de contraseña para definir una contraseña local."
+        );
+    }
+
+    private String generateAccessToken(User theUser) {
+        List<UserRole> userRoles = this.theUserRoleRepository.getRolesByUser(theUser.getId());
+        List<String> roleNames = userRoles.stream()
+                .filter(ur -> ur.getRole() != null)
+                .map(ur -> ur.getRole().getName())
+                .collect(Collectors.toList());
+        return this.theJwtService.generateToken(theUser, roleNames);
+    }
+
+    private void assignCitizenRole(User theUser) {
+        Role citizenRole = this.theRoleRepository.findByNameIgnoreCase("Ciudadano");
+        if (citizenRole == null) {
+            return;
+        }
+
+        UserRole existingRole = this.theUserRoleRepository.findByUser_IdAndRole_Id(theUser.getId(), citizenRole.getId());
+        if (existingRole == null) {
+            this.theUserRoleRepository.save(new UserRole(theUser, citizenRole));
+        }
+    }
+
+    private boolean requiresCitizenAddress(User theUser) {
+        boolean isCitizen = this.theUserRoleRepository.getRolesByUser(theUser.getId()).stream()
+                .map(UserRole::getRole)
+                .filter(role -> role != null && role.getName() != null)
+                .anyMatch(role -> "Ciudadano".equalsIgnoreCase(role.getName()));
+
+        if (!isCitizen) {
+            return false;
+        }
+
+        Profile profile = this.theProfileRepository.findByUserId(theUser.getId());
+        return profile == null || profile.getAddress() == null || profile.getAddress().isBlank();
+    }
+
+    private void upsertGoogleProfile(User theUser, String picture) {
+        if (picture == null || picture.isBlank()) {
+            return;
+        }
+
+        Profile profile = this.theProfileRepository.findByUserId(theUser.getId());
+        if (profile == null) {
+            profile = new Profile();
+            profile.setUser(theUser);
+        }
+
+        if (profile.getPhoto() == null || profile.getPhoto().isBlank()) {
+            profile.setPhoto(picture);
+            this.theProfileRepository.save(profile);
+        }
+    }
+
+    private boolean isValidGoogleIssuer(String issuer) {
+        return "https://accounts.google.com".equals(issuer) || "accounts.google.com".equals(issuer);
+    }
+
+    private boolean matchesGoogleAudience(String audience) {
+        return this.googleClientId == null || this.googleClientId.isBlank() || this.googleClientId.equals(audience);
     }
 
     // HU-Microsoft: login con token de Microsoft
