@@ -8,8 +8,10 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
@@ -28,7 +30,13 @@ public class JwtService {
     @Value("${jwt.expiration}")
     private Long expiration;
 
-    private Key secretKey = Keys.secretKeyFor(SignatureAlgorithm.HS512);
+    private Key secretKey;
+
+    // HU-009: construye la clave desde application.properties en vez de generarla aleatoriamente
+    @PostConstruct
+    public void init() {
+        secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
 
     // HU-009: el token incluye ID usuario, roles, timestamp creación y expiración
     public String generateToken(User theUser, List<String> roles) {
@@ -40,6 +48,7 @@ public class JwtService {
         claims.put("name", theUser.getName());
         claims.put("email", theUser.getEmail());
         claims.put("roles", roles);
+        claims.put("githubUsername", theUser.getGithubUsername());
         claims.put("type", ACCESS_TOKEN_TYPE);
 
         return Jwts.builder()

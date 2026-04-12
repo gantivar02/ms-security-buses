@@ -55,6 +55,10 @@ public class SecurityService {
     @Value("${google.client-id:}")
     private String googleClientId;
 
+    // URL del microservicio de notificaciones
+    @Value("${app.email.service.url}")
+    private String emailServiceUrl;
+
     private static final int MAX_ATTEMPTS = 3;
     private static final long CODE_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutos
 
@@ -140,6 +144,14 @@ public class SecurityService {
         return Map.of("token", jwt);
     }
 
+    // HU-012: cancela una sesión parcial cuando el usuario cierra la ventana antes de completar 2FA
+    public void cancelPartialSession(String sessionId) {
+        Session session = this.theSessionRepository.findById(sessionId).orElse(null);
+        if (session != null && session.getToken() == null) {
+            this.theSessionRepository.delete(session);
+        }
+    }
+
     // HU-012: reenvía un nuevo código 2FA
     public Map<String, Object> resend2FA(String sessionId) {
         Session theSession = this.theSessionRepository.findById(sessionId).orElse(null);
@@ -188,7 +200,7 @@ public class SecurityService {
                     + "}";
 
             HttpEntity<String> request = new HttpEntity<>(body, headers);
-            restTemplate.postForObject("http://localhost:5000/send-email", request, String.class);
+            restTemplate.postForObject(emailServiceUrl + "/send-email", request, String.class);
         } catch (Exception e) {
             System.out.println("Error enviando código 2FA: " + e.getMessage());
         }
@@ -289,9 +301,27 @@ public class SecurityService {
             return Map.of("token", jwt);
 
         } catch (Exception e) {
-            System.out.println("Error en loginGithub: " + e.getMessage());
             return Map.of("error", "GITHUB_AUTH_FAILED");
         }
+    }
+
+    // HU-006: desvincula la cuenta de GitHub del usuario
+    public Map<String, Object> unlinkGithubAccount(String userId) {
+        User theUser = this.theUserRepository.findById(userId).orElse(null);
+        if (theUser == null) {
+            return Map.of("error", "USER_NOT_FOUND");
+        }
+
+        if (theUser.getGithubUsername() == null || theUser.getGithubUsername().isBlank()) {
+            return Map.of("error", "GITHUB_NOT_LINKED");
+        }
+
+        theUser.setGithubUsername(null);
+        this.theUserRepository.save(theUser);
+
+        return Map.of(
+                "message", "Cuenta de GitHub desvinculada correctamente."
+        );
     }
 
     // HU-006: obtiene el email primario verificado cuando el usuario tiene email privado en GitHub
@@ -319,7 +349,7 @@ public class SecurityService {
                         .orElse(null);
             }
         } catch (Exception e) {
-            System.out.println("Error obteniendo emails de GitHub: " + e.getMessage());
+            // silencioso — el llamador maneja el null
         }
         return null;
     }

@@ -79,4 +79,33 @@ public class ProfileController {
         };
     }
 
+    // HU-006: desvincula la cuenta de GitHub del usuario autenticado
+    @PutMapping("/github/unlink")
+    public ResponseEntity<Map<String, String>> unlinkGithub(HttpServletRequest request) {
+        User currentUser = this.theValidatorsService.getUser(request);
+        if (currentUser == null) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Sesión inválida"));
+        }
+
+        Map<String, Object> response = this.theSecurityService.unlinkGithubAccount(currentUser.getId());
+        if (!response.containsKey("error")) {
+            return ResponseEntity.ok(Map.of("message", (String) response.get("message")));
+        }
+
+        String error = (String) response.get("error");
+        return switch (error) {
+            case "GITHUB_NOT_LINKED" -> ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", "La cuenta no tiene GitHub vinculado"));
+            case "USER_NOT_FOUND" -> ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "Usuario no encontrado"));
+            default -> ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "No fue posible desvincular GitHub"));
+        };
+    }
+
 }

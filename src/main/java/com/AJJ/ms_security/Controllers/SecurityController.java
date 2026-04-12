@@ -169,6 +169,16 @@ public class SecurityController {
         };
     }
 
+    // HU-012: cancela la sesión parcial cuando el usuario cierra la ventana en el paso 2FA
+    @PostMapping("/cancel-session")
+    public ResponseEntity<Void> cancelSession(@RequestBody Map<String, String> body) {
+        String sessionId = body.get("sessionId");
+        if (sessionId != null && !sessionId.isBlank()) {
+            this.theSecurityService.cancelPartialSession(sessionId);
+        }
+        return ResponseEntity.noContent().build();
+    }
+
     // HU-006: login con GitHub — el frontend envía el authorization code de GitHub
     @PostMapping("/login-github")
     public ResponseEntity<Map<String, Object>> loginGithub(@RequestBody Map<String, String> body) {
