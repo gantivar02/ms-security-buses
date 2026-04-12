@@ -1,7 +1,10 @@
 package com.AJJ.ms_security.Controllers;
 
+import com.AJJ.ms_security.Models.RegisterRequest;
 import com.AJJ.ms_security.Models.User;
 import com.AJJ.ms_security.Services.SecurityService;
+import com.AJJ.ms_security.Services.UserService;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -18,6 +21,14 @@ public class SecurityController {
 
     @Autowired
     private SecurityService theSecurityService;
+    @Autowired
+    private UserService theUserService;
+
+    @PostMapping("/register")
+    public ResponseEntity<Map<String, String>> register(@Valid @RequestBody RegisterRequest request) {
+        Map<String, String> response = this.theUserService.registerPublicUser(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(
@@ -111,12 +122,51 @@ public class SecurityController {
         Map<String, Object> theResponse = this.theSecurityService.loginGoogle(googleToken);
 
         if (theResponse == null || theResponse.containsKey("error")) {
+            String error = theResponse != null ? (String) theResponse.get("error") : null;
+
+            if ("GOOGLE_ACCOUNT_MISMATCH".equals(error)) {
+                return ResponseEntity
+                        .status(HttpStatus.CONFLICT)
+                        .body(Map.of("message", "El email ya está vinculado a otra cuenta de Google"));
+            }
+
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("message", "Autenticación con Google fallida"));
         }
 
         return ResponseEntity.ok(theResponse);
+    }
+
+    @PostMapping("/google/complete-profile")
+    public ResponseEntity<Map<String, Object>> completeGoogleProfile(@RequestBody Map<String, String> body) {
+        String onboardingToken = body.get("onboardingToken");
+        String address = body.get("address");
+        String phone = body.get("phone");
+
+        if (onboardingToken == null || onboardingToken.isBlank()) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "El token de onboarding es requerido"));
+        }
+
+        Map<String, Object> theResponse = this.theSecurityService.completeGoogleProfile(onboardingToken, address, phone);
+        if (!theResponse.containsKey("error")) {
+            return ResponseEntity.ok(theResponse);
+        }
+
+        String error = (String) theResponse.get("error");
+        return switch (error) {
+            case "ADDRESS_REQUIRED" -> ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "La dirección es obligatoria para el registro como ciudadano"));
+            case "USER_NOT_FOUND" -> ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "Usuario no encontrado"));
+            default -> ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "El onboarding de Google es inválido o expiró"));
+        };
     }
 
     // HU-006: login con GitHub — el frontend envía el authorization code de GitHub

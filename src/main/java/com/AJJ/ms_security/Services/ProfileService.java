@@ -31,6 +31,10 @@ public class ProfileService {
         if(actualProfile != null){
             actualProfile.setPhone(newProfile.getPhone());
             actualProfile.setPhoto(newProfile.getPhoto());
+            actualProfile.setAddress(newProfile.getAddress());
+            if (newProfile.getUser() != null) {
+                actualProfile.setUser(newProfile.getUser());
+            }
             this.theProfileRepository.save(actualProfile);
             return actualProfile;
         } else {
