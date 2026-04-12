@@ -2,6 +2,7 @@ package com.AJJ.ms_security.Controllers;
 
 import com.AJJ.ms_security.Services.PasswordResetService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,9 @@ public class PasswordResetController {
 
     @Autowired
     private PasswordResetService thePasswordResetService;
+
+    @Value("${recaptcha.secret}")
+    private String recaptchaSecret;
 
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, String>> forgotPassword(
@@ -74,7 +78,7 @@ public class PasswordResetController {
     private boolean verifyRecaptcha(String token) {
         try {
             RestTemplate restTemplate = new RestTemplate();
-            String url = "https://www.google.com/recaptcha/api/siteverify?secret=6LeHpbEsAAAAAJoZs3uyZGVLnSK5V8TTXBJomalS&response=" + token;
+            String url = "https://www.google.com/recaptcha/api/siteverify?secret=" + recaptchaSecret + "&response=" + token;
             Map response = restTemplate.postForObject(url, null, Map.class);
             return response != null && Boolean.TRUE.equals(response.get("success"));
         } catch (Exception e) {

@@ -31,6 +31,10 @@ public class PasswordResetService {
     @Value("${app.frontend.url}")
     private String frontendUrl;
 
+    // URL del microservicio de notificaciones
+    @Value("${app.email.service.url}")
+    private String emailServiceUrl;
+
     // HU-013: mensaje genérico siempre, no revela si el email existe o no
     private static final String GENERIC_MESSAGE =
             "Si el email existe, recibirá instrucciones de recuperación";
@@ -102,7 +106,7 @@ public class PasswordResetService {
         try {
             RestTemplate restTemplate = new RestTemplate();
 
-            String url = "http://localhost:5000/send-email";
+            String url = emailServiceUrl + "/send-email";
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);

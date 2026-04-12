@@ -69,10 +69,8 @@ public class ValidatorsService {
     public User getUser(final HttpServletRequest request) {
         User theUser=null;
         String authorizationHeader = request.getHeader("Authorization");
-        System.out.println("Header "+authorizationHeader);
         if (authorizationHeader != null && authorizationHeader.startsWith(BEARER_PREFIX)) {
             String token = authorizationHeader.substring(BEARER_PREFIX.length());
-            System.out.println("Bearer Token: " + token);
             User theUserFromToken=jwtService.getUserFromToken(token);
             if(theUserFromToken!=null) {
                 theUser= this.theUserRepository.findById(theUserFromToken.getId())
