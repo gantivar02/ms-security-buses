@@ -63,11 +63,12 @@ public class SecurityService {
     private static final long CODE_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutos
 
     // HU-012: login ahora inicia el flujo 2FA en vez de retornar JWT directamente
-    public Map<String, Object> login(User theNewUser) {
-        User theActualUser = this.theUserRepository.getUserByEmail(theNewUser.getEmail());
+    public Map<String, Object> login(String email, String password) {
+        String normalizedEmail = email == null ? null : email.trim().toLowerCase();
+        User theActualUser = this.theUserRepository.getUserByEmail(normalizedEmail);
 
         if (theActualUser == null ||
-                !theActualUser.getPassword().equals(theEncryptionService.convertSHA256(theNewUser.getPassword()))) {
+                !theActualUser.getPassword().equals(theEncryptionService.convertSHA256(password))) {
             return null;
         }
 

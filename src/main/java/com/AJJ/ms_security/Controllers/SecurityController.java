@@ -1,17 +1,16 @@
 package com.AJJ.ms_security.Controllers;
 
+import com.AJJ.ms_security.Models.LoginRequest;
 import com.AJJ.ms_security.Models.RegisterRequest;
-import com.AJJ.ms_security.Models.User;
+import com.AJJ.ms_security.Services.RecaptchaService;
 import com.AJJ.ms_security.Services.SecurityService;
 import com.AJJ.ms_security.Services.UserService;
 import jakarta.validation.Valid;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
 import java.util.Map;
 
 @CrossOrigin
@@ -23,6 +22,8 @@ public class SecurityController {
     private SecurityService theSecurityService;
     @Autowired
     private UserService theUserService;
+    @Autowired
+    private RecaptchaService theRecaptchaService;
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, String>> register(@Valid @RequestBody RegisterRequest request) {
@@ -32,10 +33,18 @@ public class SecurityController {
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(
-            @RequestBody User theNewUser,
-            final HttpServletResponse response) throws IOException {
+            @Valid @RequestBody LoginRequest loginRequest) {
 
-        Map<String, Object> theResponse = this.theSecurityService.login(theNewUser);
+        if (!this.theRecaptchaService.verifyToken(loginRequest.getRecaptchaToken(), "login")) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Verificación reCAPTCHA fallida"));
+        }
+
+        Map<String, Object> theResponse = this.theSecurityService.login(
+                loginRequest.getEmail(),
+                loginRequest.getPassword()
+        );
 
         if (theResponse == null) {
             return ResponseEntity

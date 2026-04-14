@@ -1,12 +1,11 @@
 package com.AJJ.ms_security.Controllers;
 
 import com.AJJ.ms_security.Services.PasswordResetService;
+import com.AJJ.ms_security.Services.RecaptchaService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
 
@@ -17,9 +16,8 @@ public class PasswordResetController {
 
     @Autowired
     private PasswordResetService thePasswordResetService;
-
-    @Value("${recaptcha.secret}")
-    private String recaptchaSecret;
+    @Autowired
+    private RecaptchaService theRecaptchaService;
 
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, String>> forgotPassword(
@@ -35,7 +33,7 @@ public class PasswordResetController {
         }
 
         // Verificar reCAPTCHA
-        if (!verifyRecaptcha(recaptchaToken)) {
+        if (!this.theRecaptchaService.verifyToken(recaptchaToken, "forgot_password")) {
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Verificación reCAPTCHA fallida"));
@@ -73,17 +71,5 @@ public class PasswordResetController {
                     .status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Token inválido"));
         };
-    }
-
-    private boolean verifyRecaptcha(String token) {
-        try {
-            RestTemplate restTemplate = new RestTemplate();
-            String url = "https://www.google.com/recaptcha/api/siteverify?secret=" + recaptchaSecret + "&response=" + token;
-            Map response = restTemplate.postForObject(url, null, Map.class);
-            return response != null && Boolean.TRUE.equals(response.get("success"));
-        } catch (Exception e) {
-            System.out.println("Error verificando reCAPTCHA: " + e.getMessage());
-            return false;
-        }
     }
 }
