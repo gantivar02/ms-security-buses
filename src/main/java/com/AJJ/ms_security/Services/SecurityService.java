@@ -52,9 +52,6 @@ public class SecurityService {
     @Value("${github.client-secret}")
     private String githubClientSecret;
 
-    @Value("${google.client-id:}")
-    private String googleClientId;
-
     // URL del microservicio de notificaciones
     @Value("${app.email.service.url}")
     private String emailServiceUrl;
@@ -284,7 +281,7 @@ public class SecurityService {
                 theUser.setGithubUsername(githubLogin);
                 this.theUserRepository.save(theUser);
             } else {
-                // Cuenta existente: vincular GitHub si no estaba vinculado
+                // Cuenta existente: vincular o re-vincular GitHub
                 if (theUser.getGithubUsername() == null) {
                     theUser.setGithubUsername(githubLogin);
                     this.theUserRepository.save(theUser);
@@ -362,12 +359,22 @@ public class SecurityService {
         return success;
     }
     */
-    // HU-Google: login con token de Google
+    // HU-Google: login con access_token de Google (userinfo endpoint)
     public Map<String, Object> loginGoogle(String googleToken) {
         try {
             RestTemplate restTemplate = new RestTemplate();
-            String googleUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + googleToken;
-            Map googleResponse = restTemplate.getForObject(googleUrl, Map.class);
+
+            HttpHeaders googleHeaders = new HttpHeaders();
+            googleHeaders.set("Authorization", "Bearer " + googleToken);
+            HttpEntity<?> googleEntity = new HttpEntity<>(googleHeaders);
+
+            ResponseEntity<Map> googleResponseEntity = restTemplate.exchange(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    HttpMethod.GET,
+                    googleEntity,
+                    Map.class
+            );
+            Map googleResponse = googleResponseEntity.getBody();
 
             if (googleResponse == null || googleResponse.get("email") == null || googleResponse.get("sub") == null) {
                 return Map.of("error", "TOKEN_INVALID");
@@ -376,12 +383,10 @@ public class SecurityService {
             String email = ((String) googleResponse.get("email")).toLowerCase().trim();
             String name = (String) googleResponse.get("name");
             String googleId = (String) googleResponse.get("sub");
-            String audience = (String) googleResponse.get("aud");
-            String issuer = (String) googleResponse.get("iss");
             String picture = (String) googleResponse.get("picture");
             boolean emailVerified = Boolean.parseBoolean(String.valueOf(googleResponse.get("email_verified")));
 
-            if (!emailVerified || !this.isValidGoogleIssuer(issuer) || !this.matchesGoogleAudience(audience)) {
+            if (!emailVerified) {
                 return Map.of("error", "TOKEN_INVALID");
             }
 
@@ -402,6 +407,7 @@ public class SecurityService {
                     return Map.of("error", "GOOGLE_ACCOUNT_MISMATCH");
                 }
 
+                // Vincular o re-vincular Google
                 boolean shouldSaveUser = false;
                 if (theUser.getGoogleId() == null) {
                     theUser.setGoogleId(googleId);
@@ -411,7 +417,6 @@ public class SecurityService {
                     theUser.setName(name);
                     shouldSaveUser = true;
                 }
-
                 if (shouldSaveUser) {
                     this.theUserRepository.save(theUser);
                 }
@@ -540,14 +545,6 @@ public class SecurityService {
             profile.setPhoto(picture);
             this.theProfileRepository.save(profile);
         }
-    }
-
-    private boolean isValidGoogleIssuer(String issuer) {
-        return "https://accounts.google.com".equals(issuer) || "accounts.google.com".equals(issuer);
-    }
-
-    private boolean matchesGoogleAudience(String audience) {
-        return this.googleClientId == null || this.googleClientId.isBlank() || this.googleClientId.equals(audience);
     }
 
     // HU-Microsoft: login con token de Microsoft
