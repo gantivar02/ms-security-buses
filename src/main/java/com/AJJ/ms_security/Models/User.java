@@ -42,6 +42,7 @@ public class User {
     // HU-ENTR-1-004: vinculación explícita con Google
     private String googleId;
 
+
     public  User(){
     }
 

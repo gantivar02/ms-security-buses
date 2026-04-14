@@ -8,6 +8,7 @@ import com.AJJ.ms_security.Repositories.RoleRepository;
 import com.AJJ.ms_security.Repositories.UserRepository;
 import com.AJJ.ms_security.Repositories.UserRoleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import org.springframework.web.client.RestTemplate;
@@ -25,6 +26,9 @@ public class UserRoleService {
 
     @Autowired
     private UserRoleRepository theUserRoleRepository;
+
+    @Value("${app.email.service.url}")
+    private String emailServiceUrl;
 
     public String addUserRole(String userId, String roleId){
 
@@ -57,11 +61,14 @@ public class UserRoleService {
 
 
     public boolean removeUserRole(String userRoleId){
-        UserRole userRole=this.theUserRoleRepository.findById(userRoleId).orElse(null);
-        if (userRole!=null){
+        UserRole userRole = this.theUserRoleRepository.findById(userRoleId).orElse(null);
+        if (userRole != null) {
+            String email = userRole.getUser().getEmail();
+            String roleName = userRole.getRole().getName();
             this.theUserRoleRepository.delete(userRole);
+            sendRoleEmail(email, roleName, false);
             return true;
-        }else{
+        } else {
             return false;
         }
     }
@@ -105,26 +112,31 @@ public class UserRoleService {
         return "SUCCESS";
     }
     private void sendEmail(String email, String roleName) {
+        sendRoleEmail(email, roleName, true);
+    }
+
+    private void sendRoleEmail(String email, String roleName, boolean assigned) {
         try {
             RestTemplate restTemplate = new RestTemplate();
-
-            String url = "http://localhost:5000/send-email";
-
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
+            String subject = assigned ? "Rol asignado en JAP Team" : "Rol removido en JAP Team";
+            String message = assigned
+                    ? "Se te ha asignado el rol " + roleName + " en el sistema JAP Team."
+                    : "Se te ha removido el rol " + roleName + " del sistema JAP Team.";
+
             String body = "{"
                     + "\"to\":\"" + email + "\","
-                    + "\"subject\":\"Cambio de roles\","
-                    + "\"message\":\"Se te asignó el rol: " + roleName + "\""
+                    + "\"subject\":\"" + subject + "\","
+                    + "\"message\":\"" + message + "\""
                     + "}";
 
             HttpEntity<String> request = new HttpEntity<>(body, headers);
-
-            restTemplate.postForObject(url, request, String.class);
+            restTemplate.postForObject(emailServiceUrl + "/send-email", request, String.class);
 
         } catch (Exception e) {
-            System.out.println("Error enviando correo: " + e.getMessage());
+            System.out.println("Error enviando correo de rol: " + e.getMessage());
         }
     }
 

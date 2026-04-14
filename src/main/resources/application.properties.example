@@ -1,0 +1,27 @@
+spring.application.name=ms_Security
+server.port=8081
+
+# MongoDB — pedir cadena de conexión al equipo
+spring.mongodb.uri=mongodb+srv://<usuario>:<password>@<cluster>.mongodb.net/?appName=<appName>
+spring.mongodb.database=db_security
+
+# JWT — usar la misma clave que el equipo (pedir por WhatsApp/Discord)
+jwt.secret=<clave-secreta-minimo-64-caracteres>
+jwt.expiration=86400000
+
+# GitHub OAuth — HU-006
+# La OAuth App está registrada en: https://github.com/settings/developers (cuenta de gantivar02)
+# El client-id es público; el client-secret pedirlo al equipo
+github.client-id=Ov23liZnvzpL8DN1wPHA
+github.client-secret=<pedir-al-equipo>
+
+# URL del frontend (ajustar si tu puerto es distinto)
+app.frontend.url=http://localhost:5173
+
+# URL del microservicio de notificaciones (ms-notifications)
+app.email.service.url=http://localhost:5000
+
+# reCAPTCHA v3 — HU-010/HU-013 (pedir valores al equipo)
+recaptcha.secret.key=<pedir-al-equipo>
+recaptcha.verify.url=https://www.google.com/recaptcha/api/siteverify
+recaptcha.min.score=0.5

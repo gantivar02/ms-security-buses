@@ -206,7 +206,6 @@ public class SecurityController {
             String error = (String) theResponse.get("error");
 
             if ("GITHUB_EMAIL_REQUIRED".equals(error)) {
-                // El usuario tiene email privado en GitHub — el frontend debe pedirlo
                 return ResponseEntity
                         .status(HttpStatus.UNPROCESSABLE_ENTITY)
                         .body(Map.of(
