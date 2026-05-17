@@ -27,6 +27,9 @@ public class UserRoleService {
     @Autowired
     private UserRoleRepository theUserRoleRepository;
 
+    @Autowired
+    private NegocioSyncService negocioSyncService;
+
     @Value("${app.email.service.url}")
     private String emailServiceUrl;
 
@@ -56,6 +59,10 @@ public class UserRoleService {
         // 🔥 AQUÍ SE ENVÍA EL CORREO
         sendEmail(user.getEmail(), role.getName());
 
+        // Sincroniza con ms-negocio: si el rol asignado es Ciudadano o Conductor,
+        // se crea la fila correspondiente en MySQL.
+        this.negocioSyncService.syncUser(user);
+
         return "SUCCESS";
     }
 
@@ -65,8 +72,15 @@ public class UserRoleService {
         if (userRole != null) {
             String email = userRole.getUser().getEmail();
             String roleName = userRole.getRole().getName();
+            String userId = userRole.getUser().getId();
             this.theUserRoleRepository.delete(userRole);
             sendRoleEmail(email, roleName, false);
+
+            // Sincroniza con ms-negocio. La fila en `ciudadanos`/`conductores` NO
+            // se elimina automaticamente (preserva historial); solo se actualizan
+            // los roles registrados para la persona en futuras sincronizaciones.
+            this.negocioSyncService.syncUserById(userId);
+
             return true;
         } else {
             return false;
@@ -104,6 +118,9 @@ public class UserRoleService {
                 sendEmail(user.getEmail(), role.getName()); // ← línea agregada
             }
         }
+
+        // Una sola sincronizacion final al terminar de procesar todos los roles
+        this.negocioSyncService.syncUser(user);
 
         if(duplicateFound){
             return "PARTIAL_SUCCESS";
