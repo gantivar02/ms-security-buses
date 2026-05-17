@@ -2,11 +2,15 @@ package com.AJJ.ms_security.Services;
 
 import com.AJJ.ms_security.Models.Profile;
 import com.AJJ.ms_security.Models.RegisterRequest;
+import com.AJJ.ms_security.Models.Role;
 import com.AJJ.ms_security.Models.Session;
 import com.AJJ.ms_security.Models.User;
+import com.AJJ.ms_security.Models.UserRole;
+import com.AJJ.ms_security.Repositories.RoleRepository;
 import com.AJJ.ms_security.Repositories.SessionRepository;
 import com.AJJ.ms_security.Repositories.ProfileRepository;
 import com.AJJ.ms_security.Repositories.UserRepository;
+import com.AJJ.ms_security.Repositories.UserRoleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -34,8 +38,20 @@ public class UserService {
     @Autowired
     private EncryptionService theEncryptionService;
 
+    @Autowired
+    private RoleRepository theRoleRepository;
+
+    @Autowired
+    private UserRoleRepository theUserRoleRepository;
+
+    @Autowired
+    private NegocioSyncService negocioSyncService;
+
     @Value("${app.frontend.url}")
     private String frontendUrl;
+
+    @Value("${app.negocio.sync.default-role:Ciudadano}")
+    private String defaultRoleOnRegister;
 
     public List<User> find(){
 
@@ -66,12 +82,43 @@ public class UserService {
         newUser.setPassword(request.getPassword());
 
         User createdUser = this.create(newUser);
+
+        // Asigna el rol default (Ciudadano) automaticamente al registro publico.
+        this.assignDefaultRoleSafe(createdUser);
+
+        // Sincroniza con ms-negocio: crea persona + ciudadano en MySQL.
+        this.negocioSyncService.syncUser(createdUser);
+
         this.sendRegistrationConfirmationEmail(createdUser);
 
         Map<String, String> response = new HashMap<>();
         response.put("message", "Cuenta creada exitosamente. Te enviamos un correo de confirmación.");
         response.put("email", createdUser.getEmail());
         return response;
+    }
+
+    /**
+     * Asigna el rol por defecto al user recien registrado. Si el rol no existe
+     * en la coleccion (poco probable) o ya esta asignado, se ignora silenciosamente
+     * para no romper el flujo de registro.
+     */
+    private void assignDefaultRoleSafe(User user) {
+        try {
+            Role role = this.theRoleRepository.findByNameIgnoreCase(defaultRoleOnRegister);
+            if (role == null) {
+                System.err.println("[UserService] Rol default '"
+                        + defaultRoleOnRegister + "' no encontrado. Skip.");
+                return;
+            }
+            UserRole existing = this.theUserRoleRepository
+                    .findByUser_IdAndRole_Id(user.getId(), role.getId());
+            if (existing == null) {
+                this.theUserRoleRepository.save(new UserRole(user, role));
+            }
+        } catch (Exception e) {
+            System.err.println("[UserService] Error asignando rol default: "
+                    + e.getMessage());
+        }
     }
 
 
