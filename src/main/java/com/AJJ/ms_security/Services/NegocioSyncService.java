@@ -8,10 +8,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +94,37 @@ public class NegocioSyncService {
         User user = this.theUserRepository.findById(userId).orElse(null);
         if (user != null) {
             this.syncUser(user);
+        }
+    }
+
+    /**
+     * Notifica a ms-negocio que un usuario fue eliminado por un admin.
+     * ms-negocio hace soft-delete de la persona (set fecha_borrado = NOW())
+     * para preservar el historial de boletos, recargas, citas, etc.
+     * Si la llamada falla, se loggea pero NO se propaga el error.
+     */
+    public void deleteUserByEmail(String email) {
+        if (email == null || email.isBlank()) return;
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-Sync-Secret", syncSecret);
+
+            HttpEntity<Void> request = new HttpEntity<>(headers);
+
+            String encodedEmail = UriUtils.encodePathSegment(email, StandardCharsets.UTF_8);
+
+            RestTemplate restTemplate = new RestTemplate();
+            restTemplate.exchange(
+                    negocioUrl + "/api/auth-sync/persona/" + encodedEmail,
+                    HttpMethod.DELETE,
+                    request,
+                    String.class
+            );
+
+            System.out.println("[NegocioSync] DELETE OK email=" + email);
+        } catch (Exception e) {
+            System.err.println("[NegocioSync] FALLO delete email="
+                    + email + " error=" + e.getMessage());
         }
     }
 

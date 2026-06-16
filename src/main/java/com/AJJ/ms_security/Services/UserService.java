@@ -151,6 +151,11 @@ public class UserService {
     public void delete(String id){
         User theUser=this.theUserRepository.findById(id).orElse(null);
         if (theUser!=null){
+            // Sincroniza con ms-negocio antes de borrar de Mongo: marca la
+            // persona como inactiva (fecha_borrado = NOW) y conserva el
+            // historial de boletos, recargas, citas, grupos, etc. Si el
+            // mismo email se vuelve a registrar, syncUser la reactiva.
+            this.negocioSyncService.deleteUserByEmail(theUser.getEmail());
             this.theUserRepository.delete(theUser);
         }
     }

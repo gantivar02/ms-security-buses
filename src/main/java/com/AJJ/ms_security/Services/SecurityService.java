@@ -44,6 +44,8 @@ public class SecurityService {
     private ProfileRepository theProfileRepository;
     @Autowired
     private RoleRepository theRoleRepository;
+    @Autowired
+    private NegocioSyncService negocioSyncService;
 
     // HU-006: credenciales de la GitHub OAuth App
     @Value("${github.client-id}")
@@ -422,6 +424,12 @@ public class SecurityService {
                 }
             }
 
+            // Sync con ms-negocio. Cubre dos casos:
+            //  1) Primer login con Google -> crea persona + ciudadano en MySQL.
+            //  2) Logins recurrentes -> repara cuentas legacy que se crearon
+            //     antes de tener este sync (no quedaron en MySQL la 1ra vez).
+            this.negocioSyncService.syncUser(theUser);
+
             this.upsertGoogleProfile(theUser, picture);
 
             if (createdWithGoogle || this.requiresCitizenAddress(theUser)) {
@@ -473,6 +481,10 @@ public class SecurityService {
             profile.setPhone(phone.trim());
         }
         this.theProfileRepository.save(profile);
+
+        // Sync con ms-negocio: una vez completado el perfil, la persona
+        // queda con direccion/telefono actualizados en MySQL.
+        this.negocioSyncService.syncUser(theUser);
 
         return Map.of("token", this.generateAccessToken(theUser));
     }
