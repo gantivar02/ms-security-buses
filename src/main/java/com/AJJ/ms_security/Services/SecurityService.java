@@ -274,6 +274,7 @@ public class SecurityService {
 
             // 4. Buscar usuario existente o crear uno nuevo
             User theUser = this.theUserRepository.getUserByEmail(normalizedEmail);
+            boolean createdWithGithub = false;
             if (theUser == null) {
                 // Primera vez: crear cuenta automáticamente
                 theUser = new User();
@@ -282,12 +283,26 @@ public class SecurityService {
                 theUser.setPassword("GITHUB_AUTH");
                 theUser.setGithubUsername(githubLogin);
                 this.theUserRepository.save(theUser);
+                createdWithGithub = true;
             } else {
                 // Cuenta existente: vincular o re-vincular GitHub
                 if (theUser.getGithubUsername() == null) {
                     theUser.setGithubUsername(githubLogin);
                     this.theUserRepository.save(theUser);
                 }
+            }
+
+            // assignCitizenRole es idempotente: solo crea el UserRole si
+            // no existe. syncUser cubre dos casos: 1) primer registro,
+            // 2) repara cuentas legacy que se crearon antes de tener el
+            // sync hacia ms-negocio.
+            this.assignCitizenRole(theUser);
+            this.negocioSyncService.syncUser(theUser);
+
+            // Si es primer registro o la cuenta todavia no tiene direccion,
+            // el frontend debe pedirla antes de entregar el access token.
+            if (createdWithGithub || this.requiresCitizenAddress(theUser)) {
+                return this.buildProfileCompletionResponse(theUser, "github");
             }
 
             // 5. Obtener roles y generar JWT
@@ -516,6 +531,62 @@ public class SecurityService {
         return this.theJwtService.generateToken(theUser, roleNames);
     }
 
+    /**
+     * Arma la respuesta "requiere completar perfil" para los 3 providers
+     * OAuth (google, github, microsoft). El frontend usa onboardingToken
+     * para llamar al endpoint completeProfile con direccion y telefono.
+     */
+    private Map<String, Object> buildProfileCompletionResponse(User theUser, String provider) {
+        String onboardingToken = this.theJwtService.generateOnboardingToken(theUser, provider);
+        Map<String, Object> response = new HashMap<>();
+        response.put("requiresProfileCompletion", true);
+        response.put("provider", provider);
+        response.put("onboardingToken", onboardingToken);
+        response.put("userId", theUser.getId());
+        response.put("email", theUser.getEmail());
+        response.put("name", theUser.getName());
+        response.put("message", "Debe completar su direccion para finalizar el registro como ciudadano");
+        return response;
+    }
+
+    /**
+     * Variante agnostica al provider de completeGoogleProfile. Acepta tokens
+     * emitidos por generateOnboardingToken para cualquier proveedor OAuth.
+     */
+    public Map<String, Object> completeProfile(String onboardingToken, String address, String phone) {
+        if (address == null || address.isBlank()) {
+            return Map.of("error", "ADDRESS_REQUIRED");
+        }
+
+        User tokenUser = this.theJwtService.getUserFromOnboardingToken(onboardingToken);
+        if (tokenUser == null) {
+            return Map.of("error", "ONBOARDING_TOKEN_INVALID");
+        }
+
+        User theUser = this.theUserRepository.findById(tokenUser.getId()).orElse(null);
+        if (theUser == null) {
+            return Map.of("error", "USER_NOT_FOUND");
+        }
+
+        this.assignCitizenRole(theUser);
+
+        Profile profile = this.theProfileRepository.findByUserId(theUser.getId());
+        if (profile == null) {
+            profile = new Profile();
+            profile.setUser(theUser);
+        }
+
+        profile.setAddress(address.trim());
+        if (phone != null && !phone.isBlank()) {
+            profile.setPhone(phone.trim());
+        }
+        this.theProfileRepository.save(profile);
+
+        this.negocioSyncService.syncUser(theUser);
+
+        return Map.of("token", this.generateAccessToken(theUser));
+    }
+
     private void assignCitizenRole(User theUser) {
         Role citizenRole = this.theRoleRepository.findByNameIgnoreCase("Ciudadano");
         if (citizenRole == null) {
@@ -587,13 +658,27 @@ public class SecurityService {
 
             // 2. Buscar o crear usuario
             User theUser = this.theUserRepository.getUserByEmail(email);
-
+            boolean createdWithMicrosoft = false;
             if (theUser == null) {
                 theUser = new User();
                 theUser.setEmail(email);
                 theUser.setName(name);
                 theUser.setPassword("MICROSOFT_AUTH");
                 this.theUserRepository.save(theUser);
+                createdWithMicrosoft = true;
+            }
+
+            // assignCitizenRole es idempotente: solo crea el UserRole si
+            // no existe. syncUser cubre dos casos: 1) primer registro,
+            // 2) repara cuentas legacy que se crearon antes de tener el
+            // sync hacia ms-negocio.
+            this.assignCitizenRole(theUser);
+            this.negocioSyncService.syncUser(theUser);
+
+            // Si es primer registro o la cuenta todavia no tiene direccion,
+            // el frontend debe pedirla antes de entregar el access token.
+            if (createdWithMicrosoft || this.requiresCitizenAddress(theUser)) {
+                return this.buildProfileCompletionResponse(theUser, "microsoft");
             }
 
             // 3. Generar JWT

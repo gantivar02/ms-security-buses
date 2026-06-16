@@ -149,6 +149,18 @@ public class SecurityController {
 
     @PostMapping("/google/complete-profile")
     public ResponseEntity<Map<String, Object>> completeGoogleProfile(@RequestBody Map<String, String> body) {
+        return this.handleCompleteProfileRequest(body);
+    }
+
+    // Variante agnostica al proveedor OAuth (google, github, microsoft).
+    // El frontend deberia usar esta ruta; /google/complete-profile queda
+    // como alias por compatibilidad con clientes antiguos.
+    @PostMapping("/onboarding/complete-profile")
+    public ResponseEntity<Map<String, Object>> completeOnboardingProfile(@RequestBody Map<String, String> body) {
+        return this.handleCompleteProfileRequest(body);
+    }
+
+    private ResponseEntity<Map<String, Object>> handleCompleteProfileRequest(Map<String, String> body) {
         String onboardingToken = body.get("onboardingToken");
         String address = body.get("address");
         String phone = body.get("phone");
@@ -159,7 +171,7 @@ public class SecurityController {
                     .body(Map.of("message", "El token de onboarding es requerido"));
         }
 
-        Map<String, Object> theResponse = this.theSecurityService.completeGoogleProfile(onboardingToken, address, phone);
+        Map<String, Object> theResponse = this.theSecurityService.completeProfile(onboardingToken, address, phone);
         if (!theResponse.containsKey("error")) {
             return ResponseEntity.ok(theResponse);
         }
@@ -174,7 +186,7 @@ public class SecurityController {
                     .body(Map.of("message", "Usuario no encontrado"));
             default -> ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("message", "El onboarding de Google es inválido o expiró"));
+                    .body(Map.of("message", "El token de onboarding es inválido o expiró"));
         };
     }
 
