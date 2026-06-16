@@ -21,8 +21,9 @@ import java.util.Map;
 @Service
 public class JwtService {
     private static final String ACCESS_TOKEN_TYPE = "ACCESS";
+    private static final String ONBOARDING_TOKEN_TYPE = "OAUTH_ONBOARDING";
     private static final String GOOGLE_ONBOARDING_TOKEN_TYPE = "GOOGLE_ONBOARDING";
-    private static final long GOOGLE_ONBOARDING_EXPIRATION_MS = 15 * 60 * 1000;
+    private static final long ONBOARDING_EXPIRATION_MS = 15 * 60 * 1000;
 
     @Value("${jwt.secret}")
     private String secret;
@@ -60,9 +61,36 @@ public class JwtService {
                 .compact();
     }
 
+    /**
+     * Token de onboarding agnostico al proveedor OAuth (google, github,
+     * microsoft). Lleva el provider en los claims para que el endpoint
+     * que completa el perfil sepa de donde vino.
+     */
+    public String generateOnboardingToken(User theUser, String provider) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + ONBOARDING_EXPIRATION_MS);
+
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("_id", theUser.getId());
+        claims.put("name", theUser.getName());
+        claims.put("email", theUser.getEmail());
+        claims.put("provider", provider);
+        claims.put("type", ONBOARDING_TOKEN_TYPE);
+
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(theUser.getName())
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(secretKey)
+                .compact();
+    }
+
+    // Compat: tokens emitidos antes de tener el flujo agnostico siguen
+    // siendo aceptados por completeGoogleProfile.
     public String generateGoogleOnboardingToken(User theUser) {
         Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + GOOGLE_ONBOARDING_EXPIRATION_MS);
+        Date expiryDate = new Date(now.getTime() + ONBOARDING_EXPIRATION_MS);
 
         Map<String, Object> claims = new HashMap<>();
         claims.put("_id", theUser.getId());
@@ -104,6 +132,41 @@ public class JwtService {
 
     public User getUserFromGoogleOnboardingToken(String token) {
         return this.getUserFromToken(token, GOOGLE_ONBOARDING_TOKEN_TYPE);
+    }
+
+    public User getUserFromOnboardingToken(String token) {
+        // Acepta el tipo nuevo agnostico y, por compat, el viejo de Google.
+        User fromGenerico = this.getUserFromToken(token, ONBOARDING_TOKEN_TYPE);
+        if (fromGenerico != null) return fromGenerico;
+        return this.getUserFromToken(token, GOOGLE_ONBOARDING_TOKEN_TYPE);
+    }
+
+    /**
+     * Devuelve el provider declarado en el token de onboarding (google,
+     * github, microsoft). Si el token es del tipo viejo de Google, devuelve
+     * "google" por defecto.
+     */
+    public String getProviderFromOnboardingToken(String token) {
+        try {
+            Jws<Claims> claimsJws = Jwts.parserBuilder()
+                    .setSigningKey(secretKey)
+                    .build()
+                    .parseClaimsJws(token);
+
+            Claims claims = claimsJws.getBody();
+            String type = (String) claims.get("type");
+
+            if (ONBOARDING_TOKEN_TYPE.equals(type)) {
+                Object provider = claims.get("provider");
+                return provider != null ? provider.toString() : null;
+            }
+            if (GOOGLE_ONBOARDING_TOKEN_TYPE.equals(type)) {
+                return "google";
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private User getUserFromToken(String token, String expectedType) {
