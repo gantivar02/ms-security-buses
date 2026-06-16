@@ -290,6 +290,13 @@ public class SecurityService {
                 }
             }
 
+            // assignCitizenRole es idempotente: solo crea el UserRole si
+            // no existe. syncUser cubre dos casos: 1) primer registro,
+            // 2) repara cuentas legacy que se crearon antes de tener el
+            // sync hacia ms-negocio.
+            this.assignCitizenRole(theUser);
+            this.negocioSyncService.syncUser(theUser);
+
             // 5. Obtener roles y generar JWT
             List<UserRole> userRoles = this.theUserRoleRepository.getRolesByUser(theUser.getId());
             List<String> roleNames = userRoles.stream()
@@ -595,6 +602,13 @@ public class SecurityService {
                 theUser.setPassword("MICROSOFT_AUTH");
                 this.theUserRepository.save(theUser);
             }
+
+            // assignCitizenRole es idempotente: solo crea el UserRole si
+            // no existe. syncUser cubre dos casos: 1) primer registro,
+            // 2) repara cuentas legacy que se crearon antes de tener el
+            // sync hacia ms-negocio.
+            this.assignCitizenRole(theUser);
+            this.negocioSyncService.syncUser(theUser);
 
             // 3. Generar JWT
             List<UserRole> userRoles = this.theUserRoleRepository.getRolesByUser(theUser.getId());
