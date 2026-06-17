@@ -6,31 +6,42 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
-import org.springframework.web.servlet.ModelAndView;
 
 @Component
 public class SecurityInterceptor implements HandlerInterceptor {
+
     @Autowired
     private ValidatorsService validatorService;
-    // antes de que esntre al back va a entrar acá
+
+    // HU-009: valida token y permisos antes de que la petición llegue al controller
     @Override
     public boolean preHandle(HttpServletRequest request,
                              HttpServletResponse response,
-                             Object handler)
-            throws Exception {
-        boolean success=this.validatorService.validationRolePermission(request,request.getRequestURI(),request.getMethod());
-        return success;
-    }
-   // lo que va a salir pasa por acá
-    @Override
-    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler,
-                           ModelAndView modelAndView) throws Exception {
-        // Lógica a ejecutar después de que se haya manejado la solicitud por el controlador
-    }
+                             Object handler) throws Exception {
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
 
-    @Override
-    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler,
-                                Exception ex) throws Exception {
-        // Lógica a ejecutar después de completar la solicitud, incluso después de la renderización de la vista
+        int status = this.validatorService.validationRolePermission(
+                request, request.getRequestURI(), request.getMethod());
+
+        if (status == 200) {
+            return true;
+        }
+
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+
+        if (status == 401) {
+            // HU-009: sin token o token inválido → 401
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("{\"message\": \"Sesión expirada o inválida\"}");
+        } else {
+            // HU-009: token válido pero sin permiso → 403
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.getWriter().write("{\"message\": \"Acceso denegado\"}");
+        }
+
+        return false;
     }
 }

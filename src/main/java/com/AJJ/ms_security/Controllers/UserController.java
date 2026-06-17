@@ -2,6 +2,7 @@ package com.AJJ.ms_security.Controllers;
 
 import com.AJJ.ms_security.Models.User;
 import com.AJJ.ms_security.Services.UserService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +14,7 @@ import java.util.Map;
 
 @CrossOrigin
 @RestController
-@RequestMapping("/users")
+@RequestMapping("/api/users")
 public class UserController {
 
     @Autowired
@@ -23,6 +24,10 @@ public class UserController {
     public List<User> find() {
         return this.theUserService.find();
     }
+    @GetMapping("/search")
+    public List<User> searchUsers(@RequestParam String text){
+        return this.theUserService.searchUsers(text);
+    }
 
     @GetMapping("{id}")
     public User findById(@PathVariable String id) {
@@ -30,12 +35,12 @@ public class UserController {
     }
 
     @PostMapping
-    public User create(@RequestBody User newUser) {
+    public User create(@Valid @RequestBody User newUser) {
         return this.theUserService.create(newUser);
     }
 
     @PutMapping("{id}")
-    public User update(@PathVariable String id, @RequestBody User newUser) {
+    public User update(@PathVariable String id,@RequestBody User newUser) {
         return this.theUserService.update(id, newUser);
     }
 

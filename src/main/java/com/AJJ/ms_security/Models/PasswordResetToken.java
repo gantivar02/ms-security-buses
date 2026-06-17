@@ -9,25 +9,25 @@ import java.util.Date;
 
 @Data
 @Document
-public class Session {
+public class PasswordResetToken {
+
     @Id
     private String id;
+
     private String token;
     private Date expiration;
-    private String code2FA;
-    private int attempts; // HU-012: intentos fallidos del código 2FA (máximo 3)
+    private boolean used;
 
     @DBRef
     private User user;
 
-    public Session(){
+    public PasswordResetToken() {
     }
 
-    public Session(String code2FA, Date expiration, User user) {
-        this.code2FA = code2FA;
+    public PasswordResetToken(String token, Date expiration, User user) {
+        this.token = token;
         this.expiration = expiration;
         this.user = user;
-        this.attempts = 0;
-        this.token = null; // el JWT se asigna solo después de verificar el código
+        this.used = false;
     }
 }
