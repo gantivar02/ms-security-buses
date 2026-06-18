@@ -22,7 +22,6 @@ import java.util.Map;
  * (header X-Sync-Secret). Asi nadie sin el secret puede disparar
  * un re-procesamiento masivo.
  */
-@CrossOrigin
 @RestController
 @RequestMapping("/api/sync")
 public class SyncController {
